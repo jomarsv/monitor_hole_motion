@@ -27,6 +27,7 @@ type RemoteDeviceMonitorProps = {
 
 export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
   const vibratedAlertKeysRef = useRef<Set<string>>(new Set());
+  const pageOpenedAtRef = useRef(Date.now());
   const [deviceState, setDeviceState] = useState<RemoteDeviceState | null>(null);
   const [samples, setSamples] = useState<RemoteTelemetrySample[]>([]);
   const [alerts, setAlerts] = useState<RemoteAlertEvent[]>([]);
@@ -94,7 +95,11 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
     const newestAlert = alerts[0];
     const alertKey = newestAlert.id ?? `${newestAlert.deviceId}:${newestAlert.detectedAt}:${newestAlert.title}`;
 
-    if (vibratedAlertKeysRef.current.has(alertKey)) {
+    if (
+      vibratedAlertKeysRef.current.has(alertKey) ||
+      newestAlert.detectedAt < pageOpenedAtRef.current
+    ) {
+      vibratedAlertKeysRef.current.add(alertKey);
       return;
     }
 

@@ -14,8 +14,8 @@ type VibratingNotificationOptions = NotificationOptions & {
 
 export function getBrowserAlertSupport(): BrowserAlertSupport {
   return {
-    vibration: "vibrate" in navigator,
-    notifications: "Notification" in window,
+    vibration: typeof navigator !== "undefined" && "vibrate" in navigator,
+    notifications: typeof window !== "undefined" && "Notification" in window,
   };
 }
 
@@ -24,8 +24,15 @@ export async function enableBrowserAlerts(): Promise<BrowserAlertSupport> {
 
   vibrateForSeverity("attention");
 
-  if (support.notifications && Notification.permission === "default") {
-    await Notification.requestPermission();
+  try {
+    if (support.notifications && Notification.permission === "default") {
+      await Notification.requestPermission();
+    }
+  } catch {
+    return {
+      ...support,
+      notifications: false,
+    };
   }
 
   return support;
@@ -42,7 +49,11 @@ export function notifyBrowserAlert({
 }) {
   vibrateForSeverity(severity);
 
-  if ("Notification" in window && Notification.permission === "granted") {
+  try {
+    if (!("Notification" in window) || Notification.permission !== "granted") {
+      return;
+    }
+
     const options: VibratingNotificationOptions = {
       body,
       icon: "/favicon.ico",
@@ -52,20 +63,32 @@ export function notifyBrowserAlert({
     };
 
     new Notification(title, options);
+  } catch {
+    // Android Chrome may expose Notification but reject constructor usage.
   }
 }
 
 export function vibrateForSeverity(severity: AlertLevel) {
-  if (!("vibrate" in navigator)) {
+  if (typeof navigator === "undefined" || !("vibrate" in navigator)) {
     return;
   }
 
-  navigator.vibrate(getVibrationPattern(severity));
+  try {
+    navigator.vibrate(getVibrationPattern(severity));
+  } catch {
+    // Some mobile browsers expose the API but block vibration at runtime.
+  }
 }
 
 export function stopVibration() {
-  if ("vibrate" in navigator) {
+  if (typeof navigator === "undefined" || !("vibrate" in navigator)) {
+    return;
+  }
+
+  try {
     navigator.vibrate(0);
+  } catch {
+    // Ignore runtime vibration blocks.
   }
 }
 
