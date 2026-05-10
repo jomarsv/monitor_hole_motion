@@ -158,11 +158,15 @@ export function HolyMotionMonitor() {
 
   useEffect(() => {
     if (!remoteConfigured || motionAnalysis.alerts.length === 0) {
+      if (motionAnalysis.alerts.length === 0) {
+        publishedAlertKeysRef.current.clear();
+      }
+
       return;
     }
 
     for (const alert of motionAnalysis.alerts) {
-      const alertKey = `${alert.id}:${Math.floor(alert.detectedAt / 5000)}`;
+      const alertKey = alert.id;
 
       if (publishedAlertKeysRef.current.has(alertKey)) {
         continue;
@@ -379,6 +383,11 @@ function AttentionPanel({ analysis }: { analysis: MotionAnalysis }) {
             value={analysis.metrics.peakAccelerationMagnitudeG}
           />
           <MetricPill
+            label="Pico recente"
+            unit="g"
+            value={analysis.metrics.recentPeakAccelerationMagnitudeG}
+          />
+          <MetricPill
             label="Giro total"
             unit="deg/s"
             value={analysis.metrics.angularVelocityMagnitudeDps}
@@ -398,6 +407,14 @@ function AttentionPanel({ analysis }: { analysis: MotionAnalysis }) {
             unit="deg"
             value={analysis.metrics.peakTiltDegrees}
           />
+          <TextPill
+            label="Incl. sustentada"
+            value={analysis.metrics.sustainedTilt ? "sim" : "nao"}
+          />
+          <TextPill
+            label="Imobilidade"
+            value={analysis.metrics.relativeInactivity ? "sim" : "nao"}
+          />
         </div>
       </div>
       {analysis.alerts.length > 0 ? (
@@ -414,6 +431,15 @@ function AttentionPanel({ analysis }: { analysis: MotionAnalysis }) {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function TextPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-current/15 bg-white/60 px-3 py-2">
+      <p className="text-xs font-semibold">{label}</p>
+      <p className="mt-1 font-mono text-sm">{value}</p>
+    </div>
   );
 }
 

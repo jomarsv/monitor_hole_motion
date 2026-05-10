@@ -18,6 +18,8 @@ export type RemoteMotionMetrics = {
   peakAngularVelocityMagnitudeDps?: number;
   maxTiltDegrees?: number;
   peakTiltDegrees?: number;
+  sustainedTilt: boolean;
+  relativeInactivity: boolean;
   sampleCount: number;
 };
 

@@ -15,7 +15,7 @@ describe("motion analysis", () => {
       },
     ]);
 
-    assert.equal(result.severity, "critical");
+    assert.equal(result.severity, "attention");
     assert.equal(result.alerts[0]?.id, "impact");
   });
 
@@ -31,14 +31,14 @@ describe("motion analysis", () => {
       },
     ]);
 
-    assert.equal(result.severity, "critical");
+    assert.equal(result.severity, "attention");
     assert.ok(
       Math.abs((result.metrics.peakAccelerationMagnitudeG ?? 0) - Math.sqrt(1.98)) <
         0.000001,
     );
   });
 
-  it("flags sustained tilt over the configured window", () => {
+  it("does not flag sustained tilt without a recent impact", () => {
     const samples: MotionSample[] = [
       {
         timestamp: 1000,
@@ -56,8 +56,9 @@ describe("motion analysis", () => {
 
     const result = analyzeMotion(samples);
 
-    assert.equal(result.severity, "attention");
-    assert.equal(result.alerts[0]?.id, "sustained-tilt");
+    assert.equal(result.severity, "normal");
+    assert.equal(result.alerts.length, 0);
+    assert.equal(result.metrics.sustainedTilt, true);
   });
 
   it("does not flag a short tilt", () => {
@@ -102,5 +103,35 @@ describe("motion analysis", () => {
 
     assert.equal(result.severity, "attention");
     assert.equal(result.alerts[0]?.id, "relative-inactivity");
+  });
+
+  it("flags possible fall when impact is followed by sustained tilt", () => {
+    const samples: MotionSample[] = [
+      {
+        timestamp: 1000,
+        acceleration: { x: 0, y: 0, z: 1.4 },
+        euler: { x: 10, y: 0, z: 0 },
+      },
+      {
+        timestamp: 2500,
+        acceleration: { x: 0, y: 0, z: 0.5 },
+        euler: { x: 76, y: 0, z: 0 },
+      },
+      {
+        timestamp: 3600,
+        acceleration: { x: 0, y: 0, z: 0.5 },
+        euler: { x: 75, y: 0, z: 0 },
+      },
+      {
+        timestamp: 5000,
+        acceleration: { x: 0, y: 0, z: 0.5 },
+        euler: { x: 74, y: 0, z: 0 },
+      },
+    ];
+
+    const result = analyzeMotion(samples);
+
+    assert.equal(result.severity, "critical");
+    assert.equal(result.alerts[0]?.id, "possible-fall");
   });
 });

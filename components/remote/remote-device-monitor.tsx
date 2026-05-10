@@ -118,6 +118,14 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
               label="Amostras"
               value={String(deviceState?.metrics.sampleCount ?? 0)}
             />
+            <StatusMetric
+              label="Incl. sustentada"
+              value={deviceState?.metrics.sustainedTilt ? "sim" : "nao"}
+            />
+            <StatusMetric
+              label="Imobilidade"
+              value={deviceState?.metrics.relativeInactivity ? "sim" : "nao"}
+            />
           </div>
         </section>
 

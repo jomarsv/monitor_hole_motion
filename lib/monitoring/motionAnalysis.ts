@@ -23,16 +23,20 @@ export type MotionAnalysis = {
   metrics: {
     accelerationMagnitudeG?: number;
     peakAccelerationMagnitudeG?: number;
+    recentPeakAccelerationMagnitudeG?: number;
     angularVelocityMagnitudeDps?: number;
     peakAngularVelocityMagnitudeDps?: number;
     maxTiltDegrees?: number;
     peakTiltDegrees?: number;
+    sustainedTilt: boolean;
+    relativeInactivity: boolean;
     sampleCount: number;
   };
 };
 
 export type MotionAnalysisConfig = {
   impactAccelerationG: number;
+  impactMemoryWindowMs: number;
   sustainedTiltDegrees: number;
   sustainedTiltWindowMs: number;
   inactivityAccelerationDeltaG: number;
@@ -42,6 +46,7 @@ export type MotionAnalysisConfig = {
 
 export const defaultMotionAnalysisConfig: MotionAnalysisConfig = {
   impactAccelerationG: 1.25,
+  impactMemoryWindowMs: 6000,
   sustainedTiltDegrees: 70,
   sustainedTiltWindowMs: 2500,
   inactivityAccelerationDeltaG: 0.035,
@@ -63,6 +68,18 @@ export function analyzeMotion(
       sample.acceleration ? magnitude(sample.acceleration) : undefined,
     ),
   );
+  const recentSamples = latestSample
+    ? samples.filter(
+        (sample) =>
+          sample.timestamp >=
+          latestSample.timestamp - config.impactMemoryWindowMs,
+      )
+    : [];
+  const recentPeakAccelerationMagnitudeG = maxDefined(
+    recentSamples.map((sample) =>
+      sample.acceleration ? magnitude(sample.acceleration) : undefined,
+    ),
+  );
   const angularVelocityMagnitudeDps = latestSample?.gyroscope
     ? magnitude(latestSample.gyroscope)
     : undefined;
@@ -81,31 +98,37 @@ export function analyzeMotion(
         : undefined,
     ),
   );
+  const sustainedTilt = hasSustainedTilt(samples, config);
+  const relativeInactivity = hasRelativeInactivity(samples, config);
+  const hasRecentImpact =
+    recentPeakAccelerationMagnitudeG !== undefined &&
+    recentPeakAccelerationMagnitudeG >= config.impactAccelerationG;
 
-  if (
-    peakAccelerationMagnitudeG !== undefined &&
-    peakAccelerationMagnitudeG >= config.impactAccelerationG
-  ) {
+  if (hasRecentImpact && (sustainedTilt || relativeInactivity)) {
+    const context = sustainedTilt
+      ? "postura inclinada sustentada"
+      : "baixa mobilidade apos o impacto";
+
     alerts.push({
-      id: "impact",
-      title: "Movimento brusco",
-      message: `Pico de aceleracao total em ${peakAccelerationMagnitudeG.toFixed(2)} g. Limite atual: ${config.impactAccelerationG.toFixed(2)} g.`,
+      id: "possible-fall",
+      title: "Possivel queda",
+      message: `Pico recente de ${recentPeakAccelerationMagnitudeG.toFixed(2)} g com ${context}.`,
       severity: "critical",
       detectedAt: latestSample?.timestamp ?? Date.now(),
     });
   }
 
-  if (hasSustainedTilt(samples, config)) {
+  if (hasRecentImpact && !sustainedTilt && !relativeInactivity) {
     alerts.push({
-      id: "sustained-tilt",
-      title: "Inclinacao sustentada",
-      message: `Angulo acima de ${config.sustainedTiltDegrees} graus por mais de ${(config.sustainedTiltWindowMs / 1000).toFixed(1)} s.`,
+      id: "impact",
+      title: "Movimento brusco",
+      message: `Pico recente de aceleracao total em ${recentPeakAccelerationMagnitudeG.toFixed(2)} g. Limite atual: ${config.impactAccelerationG.toFixed(2)} g.`,
       severity: "attention",
       detectedAt: latestSample?.timestamp ?? Date.now(),
     });
   }
 
-  if (hasRelativeInactivity(samples, config)) {
+  if (!hasRecentImpact && relativeInactivity) {
     alerts.push({
       id: "relative-inactivity",
       title: "Imobilidade relativa",
@@ -121,10 +144,13 @@ export function analyzeMotion(
     metrics: {
       accelerationMagnitudeG,
       peakAccelerationMagnitudeG,
+      recentPeakAccelerationMagnitudeG,
       angularVelocityMagnitudeDps,
       peakAngularVelocityMagnitudeDps,
       maxTiltDegrees,
       peakTiltDegrees,
+      sustainedTilt,
+      relativeInactivity,
       sampleCount: samples.length,
     },
   };
