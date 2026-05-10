@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   isTelemetryRemoteConfigured,
   subscribeAlertHistory,
@@ -19,6 +19,7 @@ type RemoteDeviceMonitorProps = {
 };
 
 export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
+  const vibratedAlertKeysRef = useRef<Set<string>>(new Set());
   const [deviceState, setDeviceState] = useState<RemoteDeviceState | null>(null);
   const [samples, setSamples] = useState<RemoteTelemetrySample[]>([]);
   const [alerts, setAlerts] = useState<RemoteAlertEvent[]>([]);
@@ -70,9 +71,28 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
       : deviceState?.severity === "attention"
         ? "border-[#d99a2b] bg-[#fff8e8] text-[#6d4710]"
         : "border-[#cfe0db] bg-white text-[#264541]";
+  const screenClass = getAlertScreenClass(deviceState?.severity ?? "normal");
+
+  useEffect(() => {
+    if (alerts.length === 0) {
+      vibratedAlertKeysRef.current.clear();
+      stopVibration();
+      return;
+    }
+
+    const newestAlert = alerts[0];
+    const alertKey = newestAlert.id ?? `${newestAlert.deviceId}:${newestAlert.detectedAt}:${newestAlert.title}`;
+
+    if (vibratedAlertKeysRef.current.has(alertKey)) {
+      return;
+    }
+
+    vibratedAlertKeysRef.current.add(alertKey);
+    vibrateForSeverity(newestAlert.severity);
+  }, [alerts]);
 
   return (
-    <main className="min-h-screen bg-[#f7faf9] px-4 py-6 text-[#10201d] sm:px-6 lg:px-8">
+    <main className={`min-h-screen px-4 py-6 text-[#10201d] transition-colors duration-300 sm:px-6 lg:px-8 ${screenClass}`}>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <header className="border-b border-[#dce8e4] pb-5">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-600">
@@ -387,4 +407,31 @@ function formatTimestamp(timestamp?: number) {
     minute: "2-digit",
     second: "2-digit",
   }).format(timestamp);
+}
+
+function getAlertScreenClass(severity: RemoteDeviceState["severity"] | "normal") {
+  if (severity === "critical") {
+    return "bg-[#fff1ed]";
+  }
+
+  if (severity === "attention") {
+    return "bg-[#fff8e8]";
+  }
+
+  return "bg-[#f7faf9]";
+}
+
+function vibrateForSeverity(severity: "attention" | "critical") {
+  if (!("vibrate" in navigator)) {
+    return;
+  }
+
+  const pattern = severity === "critical" ? [300, 120, 300, 120, 600] : [180, 90, 180];
+  navigator.vibrate(pattern);
+}
+
+function stopVibration() {
+  if ("vibrate" in navigator) {
+    navigator.vibrate(0);
+  }
 }

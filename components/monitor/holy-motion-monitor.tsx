@@ -59,6 +59,7 @@ export function HolyMotionMonitor() {
   const clientRef = useRef<HolyMotionClient | null>(null);
   const lastPublishAtRef = useRef(0);
   const publishedAlertKeysRef = useRef<Set<string>>(new Set());
+  const vibratedAlertKeysRef = useRef<Set<string>>(new Set());
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
   const [status, setStatus] = useState<HolyMotionClientStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -184,6 +185,23 @@ export function HolyMotionMonitor() {
     }
   }, [motionAnalysis.alerts, remoteConfigured]);
 
+  useEffect(() => {
+    if (motionAnalysis.alerts.length === 0) {
+      vibratedAlertKeysRef.current.clear();
+      stopVibration();
+      return;
+    }
+
+    for (const alert of motionAnalysis.alerts) {
+      if (vibratedAlertKeysRef.current.has(alert.id)) {
+        continue;
+      }
+
+      vibratedAlertKeysRef.current.add(alert.id);
+      vibrateForSeverity(alert.severity);
+    }
+  }, [motionAnalysis.alerts]);
+
   const connectSensor = useCallback(async () => {
     setErrorMessage(null);
 
@@ -217,8 +235,10 @@ export function HolyMotionMonitor() {
     status === "starting-stream" ||
     status === "notifications-starting";
 
+  const screenClass = getAlertScreenClass(motionAnalysis.severity);
+
   return (
-    <main className="min-h-screen bg-[#f7faf9] px-4 py-6 text-[#10201d] sm:px-6 lg:px-8">
+    <main className={`min-h-screen px-4 py-6 text-[#10201d] transition-colors duration-300 sm:px-6 lg:px-8 ${screenClass}`}>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <header className="flex flex-col gap-4 border-b border-[#dce8e4] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -807,4 +827,31 @@ function formatClock(timestamp: number) {
     minute: "2-digit",
     second: "2-digit",
   }).format(timestamp);
+}
+
+function getAlertScreenClass(severity: MotionAnalysis["severity"]) {
+  if (severity === "critical") {
+    return "bg-[#fff1ed]";
+  }
+
+  if (severity === "attention") {
+    return "bg-[#fff8e8]";
+  }
+
+  return "bg-[#f7faf9]";
+}
+
+function vibrateForSeverity(severity: "attention" | "critical") {
+  if (!("vibrate" in navigator)) {
+    return;
+  }
+
+  const pattern = severity === "critical" ? [300, 120, 300, 120, 600] : [180, 90, 180];
+  navigator.vibrate(pattern);
+}
+
+function stopVibration() {
+  if ("vibrate" in navigator) {
+    navigator.vibrate(0);
+  }
 }
