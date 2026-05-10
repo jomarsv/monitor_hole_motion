@@ -7,6 +7,13 @@ import {
   subscribeRemoteDevice,
   subscribeTelemetryHistory,
 } from "@/lib/monitoring/telemetryRepository";
+import {
+  enableBrowserAlerts,
+  getBrowserAlertSupport,
+  notifyBrowserAlert,
+  stopVibration,
+  type BrowserAlertSupport,
+} from "@/lib/monitoring/browserAlerts";
 import type {
   RemoteAlertEvent,
   RemoteDeviceState,
@@ -24,6 +31,10 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
   const [samples, setSamples] = useState<RemoteTelemetrySample[]>([]);
   const [alerts, setAlerts] = useState<RemoteAlertEvent[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [alertSupport, setAlertSupport] = useState<BrowserAlertSupport | null>(
+    null,
+  );
+  const [browserAlertsEnabled, setBrowserAlertsEnabled] = useState(false);
   const remoteConfigured = isTelemetryRemoteConfigured();
 
   useEffect(() => {
@@ -88,8 +99,22 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
     }
 
     vibratedAlertKeysRef.current.add(alertKey);
-    vibrateForSeverity(newestAlert.severity);
+    notifyBrowserAlert({
+      title: newestAlert.title,
+      body: newestAlert.message,
+      severity: newestAlert.severity,
+    });
   }, [alerts]);
+
+  useEffect(() => {
+    setAlertSupport(getBrowserAlertSupport());
+  }, []);
+
+  async function handleEnableBrowserAlerts() {
+    const support = await enableBrowserAlerts();
+    setAlertSupport(support);
+    setBrowserAlertsEnabled(true);
+  }
 
   return (
     <main className={`min-h-screen px-4 py-6 text-[#10201d] transition-colors duration-300 sm:px-6 lg:px-8 ${screenClass}`}>
@@ -105,6 +130,21 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
             Acesso para celular via Firestore. O computador perto do sensor
             precisa manter a tela /monitor conectada.
           </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              className="min-h-11 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500"
+              onClick={handleEnableBrowserAlerts}
+              type="button"
+            >
+              Ativar alertas no celular
+            </button>
+            <span className="text-sm text-[#5f6f6a]">
+              Vibração: {alertSupport?.vibration ? "suportada" : "indisponivel"} ·
+              Notificações:{" "}
+              {alertSupport?.notifications ? Notification.permission : "indisponiveis"}
+              {browserAlertsEnabled ? " · teste enviado" : ""}
+            </span>
+          </div>
         </header>
 
         {!remoteConfigured ? (
@@ -419,19 +459,4 @@ function getAlertScreenClass(severity: RemoteDeviceState["severity"] | "normal")
   }
 
   return "bg-[#f7faf9]";
-}
-
-function vibrateForSeverity(severity: "attention" | "critical") {
-  if (!("vibrate" in navigator)) {
-    return;
-  }
-
-  const pattern = severity === "critical" ? [300, 120, 300, 120, 600] : [180, 90, 180];
-  navigator.vibrate(pattern);
-}
-
-function stopVibration() {
-  if ("vibrate" in navigator) {
-    navigator.vibrate(0);
-  }
 }

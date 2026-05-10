@@ -16,6 +16,10 @@ import {
   publishAlertEvent,
   publishTelemetrySample,
 } from "@/lib/monitoring/telemetryRepository";
+import {
+  notifyBrowserAlert,
+  stopVibration,
+} from "@/lib/monitoring/browserAlerts";
 import type { ParsedHolyMotionPacket, Quaternion, Vector3 } from "@/lib/ble/sensorTypes";
 
 type AccelerationSample = Vector3 & {
@@ -198,7 +202,11 @@ export function HolyMotionMonitor() {
       }
 
       vibratedAlertKeysRef.current.add(alert.id);
-      vibrateForSeverity(alert.severity);
+      notifyBrowserAlert({
+        title: alert.title,
+        body: alert.message,
+        severity: alert.severity,
+      });
     }
   }, [motionAnalysis.alerts]);
 
@@ -839,19 +847,4 @@ function getAlertScreenClass(severity: MotionAnalysis["severity"]) {
   }
 
   return "bg-[#f7faf9]";
-}
-
-function vibrateForSeverity(severity: "attention" | "critical") {
-  if (!("vibrate" in navigator)) {
-    return;
-  }
-
-  const pattern = severity === "critical" ? [300, 120, 300, 120, 600] : [180, 90, 180];
-  navigator.vibrate(pattern);
-}
-
-function stopVibration() {
-  if ("vibrate" in navigator) {
-    navigator.vibrate(0);
-  }
 }
