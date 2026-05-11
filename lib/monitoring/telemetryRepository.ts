@@ -10,7 +10,7 @@ import {
   setDoc,
   type Unsubscribe,
 } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase/client";
+import { ensureFirebaseAuth, getFirebaseDb } from "@/lib/firebase/client";
 import type {
   RemoteAlertEvent,
   RemoteDeviceState,
@@ -32,6 +32,8 @@ export async function publishTelemetrySample(
   if (!db) {
     return;
   }
+
+  await ensureFirebaseAuth();
 
   const deviceRef = doc(db, "devices", sample.deviceId);
   const sanitizedSample = removeUndefinedValues(sample);
@@ -67,6 +69,8 @@ export async function publishAlertEvent(alert: RemoteAlertEvent): Promise<void> 
     return;
   }
 
+  await ensureFirebaseAuth();
+
   const deviceRef = doc(db, "devices", alert.deviceId);
   const sanitizedAlert = removeUndefinedValues(alert);
 
@@ -88,11 +92,17 @@ export function subscribeRemoteDevice(
     return () => undefined;
   }
 
-  return onSnapshot(
-    doc(db, "devices", deviceId),
-    (snapshot) => {
-      onChange(snapshot.exists() ? (snapshot.data() as RemoteDeviceState) : null);
-    },
+  return subscribeAfterAuth(
+    () =>
+      onSnapshot(
+        doc(db, "devices", deviceId),
+        (snapshot) => {
+          onChange(
+            snapshot.exists() ? (snapshot.data() as RemoteDeviceState) : null,
+          );
+        },
+        onError,
+      ),
     onError,
   );
 }
@@ -109,22 +119,26 @@ export function subscribeTelemetryHistory(
     return () => undefined;
   }
 
-  return onSnapshot(
-    query(
-      collection(db, "devices", deviceId, "telemetry"),
-      orderBy("timestamp", "desc"),
-      limit(TELEMETRY_HISTORY_LIMIT),
-    ),
-    (snapshot) => {
-      onChange(
-        snapshot.docs
-          .map((document) => ({
-            id: document.id,
-            ...(document.data() as RemoteTelemetrySample),
-          }))
-          .reverse(),
-      );
-    },
+  return subscribeAfterAuth(
+    () =>
+      onSnapshot(
+        query(
+          collection(db, "devices", deviceId, "telemetry"),
+          orderBy("timestamp", "desc"),
+          limit(TELEMETRY_HISTORY_LIMIT),
+        ),
+        (snapshot) => {
+          onChange(
+            snapshot.docs
+              .map((document) => ({
+                id: document.id,
+                ...(document.data() as RemoteTelemetrySample),
+              }))
+              .reverse(),
+          );
+        },
+        onError,
+      ),
     onError,
   );
 }
@@ -141,26 +155,55 @@ export function subscribeAlertHistory(
     return () => undefined;
   }
 
-  return onSnapshot(
-    query(
-      collection(db, "devices", deviceId, "alerts"),
-      orderBy("detectedAt", "desc"),
-      limit(ALERT_HISTORY_LIMIT),
-    ),
-    (snapshot) => {
-      onChange(
-        snapshot.docs.map((document) => {
-          const data = document.data() as RemoteAlertEvent;
+  return subscribeAfterAuth(
+    () =>
+      onSnapshot(
+        query(
+          collection(db, "devices", deviceId, "alerts"),
+          orderBy("detectedAt", "desc"),
+          limit(ALERT_HISTORY_LIMIT),
+        ),
+        (snapshot) => {
+          onChange(
+            snapshot.docs.map((document) => {
+              const data = document.data() as RemoteAlertEvent;
 
-          return {
-            ...data,
-            id: document.id,
-          };
-        }),
-      );
-    },
+              return {
+                ...data,
+                id: document.id,
+              };
+            }),
+          );
+        },
+        onError,
+      ),
     onError,
   );
+}
+
+function subscribeAfterAuth(
+  subscribe: () => Unsubscribe,
+  onError: (error: Error) => void,
+): Unsubscribe {
+  let unsubscribe: Unsubscribe | null = null;
+  let active = true;
+
+  void ensureFirebaseAuth()
+    .then((user) => {
+      if (!active || !user) {
+        return;
+      }
+
+      unsubscribe = subscribe();
+    })
+    .catch((error: unknown) => {
+      onError(error instanceof Error ? error : new Error(String(error)));
+    });
+
+  return () => {
+    active = false;
+    unsubscribe?.();
+  };
 }
 
 function removeUndefinedValues<T>(value: T): T {

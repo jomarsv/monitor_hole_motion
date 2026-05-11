@@ -134,4 +134,38 @@ describe("motion analysis", () => {
     assert.equal(result.severity, "critical");
     assert.equal(result.alerts[0]?.id, "possible-fall");
   });
+
+  it("uses a calibrated resting position as the tilt reference", () => {
+    const samples: MotionSample[] = [
+      {
+        timestamp: 1000,
+        acceleration: { x: 0, y: 0, z: 1.4 },
+        euler: { x: 75, y: 0, z: 5 },
+      },
+      {
+        timestamp: 2500,
+        acceleration: { x: 0, y: 0, z: 0.5 },
+        euler: { x: 76, y: 0, z: 4 },
+      },
+      {
+        timestamp: 3600,
+        acceleration: { x: 0, y: 0, z: 0.5 },
+        euler: { x: 75, y: 0, z: 5 },
+      },
+      {
+        timestamp: 5000,
+        acceleration: { x: 0, y: 0, z: 0.5 },
+        euler: { x: 74, y: 0, z: 6 },
+      },
+    ];
+
+    const result = analyzeMotion(samples, {
+      ...defaultMotionAnalysisConfig,
+      restingEuler: { x: 75, y: 0, z: 5 },
+    });
+
+    assert.equal(result.metrics.sustainedTilt, false);
+    assert.equal(result.severity, "attention");
+    assert.equal(result.alerts[0]?.id, "impact");
+  });
 });

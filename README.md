@@ -49,8 +49,10 @@ Para ativar:
 2. Copie o objeto de configuração para `.env.local` usando as variáveis
    `NEXT_PUBLIC_FIREBASE_*`.
 3. Habilite o Firestore no console Firebase.
-4. Rode o app e conecte o sensor em `/monitor`.
-5. Acesse `/remote/holy-motion-001` em outro dispositivo.
+4. Em Authentication > Sign-in method, habilite o provedor Anonymous.
+5. Publique as regras de `firestore.rules` no Firestore.
+6. Rode o app e conecte o sensor em `/monitor`.
+7. Acesse `/remote/holy-motion-001` em outro dispositivo.
 
 Estrutura gravada no Firestore:
 
@@ -60,23 +62,41 @@ devices/{deviceId}/telemetry/{sampleId}
 devices/{deviceId}/alerts/{alertId}
 ```
 
-Regras apenas para teste inicial:
+Regras iniciais protegidas por Firebase Auth anonimo:
 
 ```text
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /devices/{deviceId} {
-      allow read, write: if true;
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-      match /{document=**} {
-        allow read, write: if true;
+    match /devices/{deviceId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.deviceId == deviceId;
+      allow delete: if false;
+
+      match /telemetry/{sampleId} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn()
+          && request.resource.data.deviceId == deviceId;
+        allow delete: if false;
+      }
+
+      match /alerts/{alertId} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn()
+          && request.resource.data.deviceId == deviceId;
+        allow delete: if false;
       }
     }
   }
 }
 ```
 
-Antes de usar com dados reais, troque essas regras por autenticação ou token de
-acesso.
+Isso remove o acesso publico aberto. Para dados sensiveis, o proximo passo deve
+ser restringir leitura/escrita por dispositivo com papeis por UID ou mover a
+publicacao para uma API server-side com token privado.

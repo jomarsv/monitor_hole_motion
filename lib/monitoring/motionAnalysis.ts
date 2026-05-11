@@ -28,6 +28,7 @@ export type MotionAnalysis = {
     peakAngularVelocityMagnitudeDps?: number;
     maxTiltDegrees?: number;
     peakTiltDegrees?: number;
+    restingTiltDegrees?: number;
     sustainedTilt: boolean;
     relativeInactivity: boolean;
     sampleCount: number;
@@ -42,6 +43,7 @@ export type MotionAnalysisConfig = {
   inactivityAccelerationDeltaG: number;
   inactivityAngularVelocityDps: number;
   inactivityWindowMs: number;
+  restingEuler?: Vector3;
 };
 
 export const defaultMotionAnalysisConfig: MotionAnalysisConfig = {
@@ -89,15 +91,16 @@ export function analyzeMotion(
     ),
   );
   const maxTiltDegrees = latestSample?.euler
-    ? Math.max(Math.abs(latestSample.euler.x), Math.abs(latestSample.euler.z))
+    ? getTiltDegrees(latestSample.euler, config.restingEuler)
     : undefined;
   const peakTiltDegrees = maxDefined(
     samples.map((sample) =>
-      sample.euler
-        ? Math.max(Math.abs(sample.euler.x), Math.abs(sample.euler.z))
-        : undefined,
+      sample.euler ? getTiltDegrees(sample.euler, config.restingEuler) : undefined,
     ),
   );
+  const restingTiltDegrees = config.restingEuler
+    ? getTiltDegrees(config.restingEuler)
+    : undefined;
   const sustainedTilt = hasSustainedTilt(samples, config);
   const relativeInactivity = hasRelativeInactivity(samples, config);
   const hasRecentImpact =
@@ -149,6 +152,7 @@ export function analyzeMotion(
       peakAngularVelocityMagnitudeDps,
       maxTiltDegrees,
       peakTiltDegrees,
+      restingTiltDegrees,
       sustainedTilt,
       relativeInactivity,
       sampleCount: samples.length,
@@ -186,8 +190,8 @@ function hasSustainedTilt(
       }
 
       return (
-        Math.abs(sample.euler.x) >= config.sustainedTiltDegrees ||
-        Math.abs(sample.euler.z) >= config.sustainedTiltDegrees
+        getTiltDegrees(sample.euler, config.restingEuler) >=
+          config.sustainedTiltDegrees
       );
     })
   );
@@ -248,6 +252,31 @@ function getHighestSeverity(alerts: MotionAlert[]): MotionSeverity {
 
 function magnitude(vector: Vector3): number {
   return Math.sqrt(vector.x ** 2 + vector.y ** 2 + vector.z ** 2);
+}
+
+function getTiltDegrees(euler: Vector3, restingEuler?: Vector3): number {
+  if (!restingEuler) {
+    return Math.max(Math.abs(euler.x), Math.abs(euler.z));
+  }
+
+  return Math.max(
+    Math.abs(getAngleDeltaDegrees(euler.x, restingEuler.x)),
+    Math.abs(getAngleDeltaDegrees(euler.z, restingEuler.z)),
+  );
+}
+
+function getAngleDeltaDegrees(next: number, reference: number): number {
+  let delta = next - reference;
+
+  while (delta > 180) {
+    delta -= 360;
+  }
+
+  while (delta < -180) {
+    delta += 360;
+  }
+
+  return delta;
 }
 
 function maxDefined(values: (number | undefined)[]): number | undefined {

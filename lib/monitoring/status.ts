@@ -17,7 +17,7 @@ export function getMonitoringStatus(): MonitoringStatusItem[] {
     {
       label: "Firebase",
       value: getFirebaseClientStatus(),
-      description: "Cliente preparado apenas como placeholder.",
+      description: "Firestore remoto com Firebase Auth anonimo.",
     },
     {
       label: "PWA",

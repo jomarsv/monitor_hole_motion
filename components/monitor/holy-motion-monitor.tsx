@@ -8,6 +8,7 @@ import {
 } from "@/lib/ble/holyMotionClient";
 import {
   analyzeMotion,
+  defaultMotionAnalysisConfig,
   type MotionAnalysis,
   type MotionSample,
 } from "@/lib/monitoring/motionAnalysis";
@@ -69,6 +70,7 @@ export function HolyMotionMonitor() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [remoteMessage, setRemoteMessage] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SensorSnapshot>({});
+  const [restingEuler, setRestingEuler] = useState<Vector3 | undefined>();
   const [peaks, setPeaks] = useState<SensorPeaks>({});
   const [accelerationSamples, setAccelerationSamples] = useState<
     AccelerationSample[]
@@ -125,8 +127,12 @@ export function HolyMotionMonitor() {
   );
 
   const motionAnalysis = useMemo(
-    () => analyzeMotion(motionSamples),
-    [motionSamples],
+    () =>
+      analyzeMotion(motionSamples, {
+        ...defaultMotionAnalysisConfig,
+        restingEuler,
+      }),
+    [motionSamples, restingEuler],
   );
   const remoteConfigured = isTelemetryRemoteConfigured();
 
@@ -236,6 +242,20 @@ export function HolyMotionMonitor() {
     clientRef.current = null;
   }, []);
 
+  const calibrateRestingPosition = useCallback(() => {
+    if (!snapshot.euler) {
+      setErrorMessage("Aguarde uma leitura de Euler antes de calibrar repouso.");
+      return;
+    }
+
+    setRestingEuler(snapshot.euler);
+    setErrorMessage(null);
+  }, [snapshot.euler]);
+
+  const clearRestingCalibration = useCallback(() => {
+    setRestingEuler(undefined);
+  }, []);
+
   const canConnect =
     isSupported === true && status !== "connected" && status !== "connecting";
   const canDisconnect =
@@ -269,6 +289,23 @@ export function HolyMotionMonitor() {
               {statusLabels[status]}
             </span>
             <button
+              className="min-h-11 rounded-md border border-[#c7d8d2] bg-white px-4 py-2 text-sm font-semibold text-[#10201d] transition hover:bg-[#eef8f6] disabled:cursor-not-allowed disabled:text-[#8b9a96]"
+              disabled={!snapshot.euler}
+              onClick={calibrateRestingPosition}
+              type="button"
+            >
+              Calibrar repouso
+            </button>
+            {restingEuler ? (
+              <button
+                className="min-h-11 rounded-md border border-[#c7d8d2] bg-white px-4 py-2 text-sm font-semibold text-[#10201d] transition hover:bg-[#eef8f6]"
+                onClick={clearRestingCalibration}
+                type="button"
+              >
+                Limpar calibracao
+              </button>
+            ) : null}
+            <button
               className="min-h-11 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:bg-[#9fb8b1]"
               disabled={!canConnect}
               onClick={connectSensor}
@@ -292,6 +329,8 @@ export function HolyMotionMonitor() {
             {errorMessage}
           </p>
         ) : null}
+
+        <RestingCalibrationPanel restingEuler={restingEuler} />
 
         <AttentionPanel analysis={motionAnalysis} />
 
@@ -339,6 +378,32 @@ export function HolyMotionMonitor() {
         </section>
       </div>
     </main>
+  );
+}
+
+function RestingCalibrationPanel({
+  restingEuler,
+}: {
+  restingEuler?: Vector3;
+}) {
+  return (
+    <section className="rounded-lg border border-[#dce8e4] bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#5f6f6a]">
+            Calibracao de repouso
+          </p>
+          <h2 className="mt-1 text-lg font-semibold">
+            {restingEuler ? "Referencia ativa" : "Sem referencia calibrada"}
+          </h2>
+        </div>
+        <div className="grid gap-2 text-sm sm:grid-cols-3">
+          <MetricPill label="Roll" unit="deg" value={restingEuler?.x} />
+          <MetricPill label="Pitch" unit="deg" value={restingEuler?.y} />
+          <MetricPill label="Yaw" unit="deg" value={restingEuler?.z} />
+        </div>
+      </div>
+    </section>
   );
 }
 
