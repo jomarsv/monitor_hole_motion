@@ -16,6 +16,8 @@ import {
   isTelemetryRemoteConfigured,
   publishAlertEvent,
   publishTelemetrySample,
+  saveDeviceSettings,
+  subscribeDeviceSettings,
 } from "@/lib/monitoring/telemetryRepository";
 import { getFirebaseAuthErrorMessage } from "@/lib/firebase/client";
 import {
@@ -70,6 +72,7 @@ export function HolyMotionMonitor() {
   const [status, setStatus] = useState<HolyMotionClientStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [remoteMessage, setRemoteMessage] = useState<string | null>(null);
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SensorSnapshot>({});
   const [restingEuler, setRestingEuler] = useState<Vector3 | undefined>();
   const [peaks, setPeaks] = useState<SensorPeaks>({});
@@ -136,6 +139,28 @@ export function HolyMotionMonitor() {
     [motionSamples, restingEuler],
   );
   const remoteConfigured = isTelemetryRemoteConfigured();
+
+  useEffect(() => {
+    if (!remoteConfigured) {
+      setSettingsMessage("Calibracao salva apenas nesta sessao.");
+      return;
+    }
+
+    return subscribeDeviceSettings(
+      DEFAULT_DEVICE_ID,
+      (settings) => {
+        setRestingEuler(settings?.restingEuler);
+        setSettingsMessage(
+          settings?.restingEuler
+            ? `Configuracao carregada: ${formatClock(settings.updatedAt ?? Date.now())}`
+            : "Sem calibracao salva para este dispositivo.",
+        );
+      },
+      (error) => {
+        setSettingsMessage(`Falha ao carregar configuracao: ${error.message}`);
+      },
+    );
+  }, [remoteConfigured]);
 
   useEffect(() => {
     if (!remoteConfigured || motionSamples.length === 0) {
@@ -249,13 +274,55 @@ export function HolyMotionMonitor() {
       return;
     }
 
+    const nextRestingEuler = snapshot.euler;
+    const updatedAt = Date.now();
+
     setRestingEuler(snapshot.euler);
     setErrorMessage(null);
-  }, [snapshot.euler]);
+
+    if (!remoteConfigured) {
+      setSettingsMessage("Calibracao salva apenas nesta sessao.");
+      return;
+    }
+
+    setSettingsMessage("Salvando calibracao do dispositivo...");
+
+    void saveDeviceSettings(DEFAULT_DEVICE_ID, {
+      restingEuler: nextRestingEuler,
+      updatedAt,
+    })
+      .then(() => {
+        setSettingsMessage(`Calibracao salva: ${formatClock(updatedAt)}`);
+      })
+      .catch((error: unknown) => {
+        const message = getFirebaseAuthErrorMessage(error);
+        setSettingsMessage(`Falha ao salvar calibracao: ${message}`);
+        setErrorMessage(message);
+      });
+  }, [remoteConfigured, snapshot.euler]);
 
   const clearRestingCalibration = useCallback(() => {
+    const updatedAt = Date.now();
+
     setRestingEuler(undefined);
-  }, []);
+
+    if (!remoteConfigured) {
+      setSettingsMessage("Calibracao removida desta sessao.");
+      return;
+    }
+
+    setSettingsMessage("Removendo calibracao do dispositivo...");
+
+    void saveDeviceSettings(DEFAULT_DEVICE_ID, { updatedAt })
+      .then(() => {
+        setSettingsMessage(`Calibracao removida: ${formatClock(updatedAt)}`);
+      })
+      .catch((error: unknown) => {
+        const message = getFirebaseAuthErrorMessage(error);
+        setSettingsMessage(`Falha ao remover calibracao: ${message}`);
+        setErrorMessage(message);
+      });
+  }, [remoteConfigured]);
 
   const canConnect =
     isSupported === true && status !== "connected" && status !== "connecting";
@@ -331,7 +398,10 @@ export function HolyMotionMonitor() {
           </p>
         ) : null}
 
-        <RestingCalibrationPanel restingEuler={restingEuler} />
+        <RestingCalibrationPanel
+          restingEuler={restingEuler}
+          settingsMessage={settingsMessage}
+        />
 
         <AttentionPanel analysis={motionAnalysis} />
 
@@ -384,8 +454,10 @@ export function HolyMotionMonitor() {
 
 function RestingCalibrationPanel({
   restingEuler,
+  settingsMessage,
 }: {
   restingEuler?: Vector3;
+  settingsMessage: string | null;
 }) {
   return (
     <section className="rounded-lg border border-[#dce8e4] bg-white p-4 shadow-sm">
@@ -397,6 +469,9 @@ function RestingCalibrationPanel({
           <h2 className="mt-1 text-lg font-semibold">
             {restingEuler ? "Referencia ativa" : "Sem referencia calibrada"}
           </h2>
+          {settingsMessage ? (
+            <p className="mt-1 text-sm text-[#5f6f6a]">{settingsMessage}</p>
+          ) : null}
         </div>
         <div className="grid gap-2 text-sm sm:grid-cols-3">
           <MetricPill label="Roll" unit="deg" value={restingEuler?.x} />

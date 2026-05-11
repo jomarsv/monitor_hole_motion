@@ -34,6 +34,11 @@ export type RemoteTelemetrySample = {
   metrics: RemoteMotionMetrics;
 };
 
+export type RemoteDeviceSettings = {
+  restingEuler?: Vector3;
+  updatedAt?: number;
+};
+
 export type RemoteAlertEvent = MotionAlert & {
   id?: string;
   deviceId: string;
@@ -48,4 +53,5 @@ export type RemoteDeviceState = {
   severity: MotionSeverity;
   snapshot: RemoteSensorSnapshot;
   metrics: RemoteMotionMetrics;
+  settings?: RemoteDeviceSettings;
 };

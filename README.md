@@ -62,6 +62,10 @@ devices/{deviceId}/telemetry/{sampleId}
 devices/{deviceId}/alerts/{alertId}
 ```
 
+O documento `devices/{deviceId}` tambem guarda `settings`, incluindo a
+calibracao de repouso (`settings.restingEuler`) usada pelo monitor para calcular
+inclinacao relativa por dispositivo.
+
 Regras iniciais protegidas por Firebase Auth anonimo:
 
 ```text

@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteField,
   doc,
   limit,
   onSnapshot,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/firebase/client";
 import type {
   RemoteAlertEvent,
+  RemoteDeviceSettings,
   RemoteDeviceState,
   RemoteTelemetrySample,
 } from "@/lib/monitoring/remoteTypes";
@@ -84,6 +86,34 @@ export async function publishAlertEvent(alert: RemoteAlertEvent): Promise<void> 
   });
 }
 
+export async function saveDeviceSettings(
+  deviceId: string,
+  settings: RemoteDeviceSettings,
+): Promise<void> {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    return;
+  }
+
+  await ensureFirebaseAuth();
+
+  const deviceRef = doc(db, "devices", deviceId);
+
+  await setDoc(
+    deviceRef,
+    {
+      deviceId,
+      settings: {
+        updatedAt: settings.updatedAt ?? Date.now(),
+        restingEuler: settings.restingEuler ?? deleteField(),
+      },
+      settingsServerUpdatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
 export function subscribeRemoteDevice(
   deviceId: string,
   onChange: (state: RemoteDeviceState | null) => void,
@@ -104,6 +134,38 @@ export function subscribeRemoteDevice(
           onChange(
             snapshot.exists() ? (snapshot.data() as RemoteDeviceState) : null,
           );
+        },
+        onError,
+      ),
+    onError,
+  );
+}
+
+export function subscribeDeviceSettings(
+  deviceId: string,
+  onChange: (settings: RemoteDeviceSettings | null) => void,
+  onError: (error: Error) => void,
+): Unsubscribe {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    onChange(null);
+    return () => undefined;
+  }
+
+  return subscribeAfterAuth(
+    () =>
+      onSnapshot(
+        doc(db, "devices", deviceId),
+        (snapshot) => {
+          if (!snapshot.exists()) {
+            onChange(null);
+            return;
+          }
+
+          const data = snapshot.data() as RemoteDeviceState;
+
+          onChange(data.settings ?? null);
         },
         onError,
       ),
