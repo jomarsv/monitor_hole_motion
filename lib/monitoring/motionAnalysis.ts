@@ -1,4 +1,5 @@
 import type { Vector3 } from "@/lib/ble/sensorTypes";
+import type { RemoteBehaviorProfile } from "@/lib/monitoring/remoteTypes";
 
 export type MotionSeverity = "normal" | "attention" | "critical";
 
@@ -29,6 +30,8 @@ export type MotionAnalysis = {
     maxTiltDegrees?: number;
     peakTiltDegrees?: number;
     restingTiltDegrees?: number;
+    behaviorDeviationScore?: number;
+    learnedSampleCount?: number;
     sustainedTilt: boolean;
     relativeInactivity: boolean;
     sampleCount: number;
@@ -44,6 +47,7 @@ export type MotionAnalysisConfig = {
   inactivityAngularVelocityDps: number;
   inactivityWindowMs: number;
   restingEuler?: Vector3;
+  behaviorProfile?: RemoteBehaviorProfile;
 };
 
 export const defaultMotionAnalysisConfig: MotionAnalysisConfig = {
@@ -106,6 +110,12 @@ export function analyzeMotion(
   const hasRecentImpact =
     recentPeakAccelerationMagnitudeG !== undefined &&
     recentPeakAccelerationMagnitudeG >= config.impactAccelerationG;
+  const behaviorDeviation = getBehaviorDeviation({
+    accelerationMagnitudeG,
+    angularVelocityMagnitudeDps,
+    maxTiltDegrees,
+    profile: config.behaviorProfile,
+  });
 
   if (hasRecentImpact && (sustainedTilt || relativeInactivity)) {
     const context = sustainedTilt
@@ -141,6 +151,20 @@ export function analyzeMotion(
     });
   }
 
+  if (
+    !hasRecentImpact &&
+    !relativeInactivity &&
+    behaviorDeviation.isUnusual
+  ) {
+    alerts.push({
+      id: "unusual-motion",
+      title: "Movimento fora do padrao",
+      message: `Leitura atual desviou do perfil aprendido (${behaviorDeviation.reason}).`,
+      severity: "attention",
+      detectedAt: latestSample?.timestamp ?? Date.now(),
+    });
+  }
+
   return {
     severity: getHighestSeverity(alerts),
     alerts,
@@ -153,10 +177,60 @@ export function analyzeMotion(
       maxTiltDegrees,
       peakTiltDegrees,
       restingTiltDegrees,
+      behaviorDeviationScore: behaviorDeviation.score,
+      learnedSampleCount: config.behaviorProfile?.sampleCount,
       sustainedTilt,
       relativeInactivity,
       sampleCount: samples.length,
     },
+  };
+}
+
+export function updateBehaviorProfile(
+  current: RemoteBehaviorProfile | undefined,
+  analysis: MotionAnalysis,
+  timestamp = Date.now(),
+): RemoteBehaviorProfile | undefined {
+  if (analysis.severity !== "normal" || analysis.metrics.sampleCount < 10) {
+    return current;
+  }
+
+  const nextCount = Math.min((current?.sampleCount ?? 0) + 1, 10000);
+  const learningRate = current ? Math.max(0.02, 1 / nextCount) : 1;
+
+  return {
+    sampleCount: nextCount,
+    updatedAt: timestamp,
+    accelerationMagnitudeMeanG: updateAverage(
+      current?.accelerationMagnitudeMeanG,
+      analysis.metrics.accelerationMagnitudeG,
+      learningRate,
+    ),
+    accelerationMagnitudeTypicalPeakG: updatePeak(
+      current?.accelerationMagnitudeTypicalPeakG,
+      analysis.metrics.peakAccelerationMagnitudeG,
+      learningRate,
+    ),
+    angularVelocityMeanDps: updateAverage(
+      current?.angularVelocityMeanDps,
+      analysis.metrics.angularVelocityMagnitudeDps,
+      learningRate,
+    ),
+    angularVelocityTypicalPeakDps: updatePeak(
+      current?.angularVelocityTypicalPeakDps,
+      analysis.metrics.peakAngularVelocityMagnitudeDps,
+      learningRate,
+    ),
+    tiltMeanDegrees: updateAverage(
+      current?.tiltMeanDegrees,
+      analysis.metrics.maxTiltDegrees,
+      learningRate,
+    ),
+    tiltTypicalPeakDegrees: updatePeak(
+      current?.tiltTypicalPeakDegrees,
+      analysis.metrics.peakTiltDegrees,
+      learningRate,
+    ),
   };
 }
 
@@ -238,6 +312,54 @@ function hasRelativeInactivity(
   );
 }
 
+function getBehaviorDeviation({
+  accelerationMagnitudeG,
+  angularVelocityMagnitudeDps,
+  maxTiltDegrees,
+  profile,
+}: {
+  accelerationMagnitudeG?: number;
+  angularVelocityMagnitudeDps?: number;
+  maxTiltDegrees?: number;
+  profile?: RemoteBehaviorProfile;
+}) {
+  if (!profile || profile.sampleCount < 20) {
+    return { isUnusual: false, score: 0, reason: "perfil em aprendizado" };
+  }
+
+  const accelerationScore = getDeviationScore(
+    accelerationMagnitudeG,
+    profile.accelerationMagnitudeMeanG,
+    profile.accelerationMagnitudeTypicalPeakG,
+    0.3,
+  );
+  const angularScore = getDeviationScore(
+    angularVelocityMagnitudeDps,
+    profile.angularVelocityMeanDps,
+    profile.angularVelocityTypicalPeakDps,
+    12,
+  );
+  const tiltScore = getDeviationScore(
+    maxTiltDegrees,
+    profile.tiltMeanDegrees,
+    profile.tiltTypicalPeakDegrees,
+    18,
+  );
+  const score = Math.max(accelerationScore, angularScore, tiltScore);
+  const reason =
+    score === accelerationScore
+      ? "aceleracao acima do habitual"
+      : score === angularScore
+        ? "giro acima do habitual"
+        : "inclinacao acima do habitual";
+
+  return {
+    isUnusual: score >= 1,
+    score,
+    reason,
+  };
+}
+
 function getHighestSeverity(alerts: MotionAlert[]): MotionSeverity {
   if (alerts.some((alert) => alert.severity === "critical")) {
     return "critical";
@@ -277,6 +399,59 @@ function getAngleDeltaDegrees(next: number, reference: number): number {
   }
 
   return delta;
+}
+
+function updateAverage(
+  current: number | undefined,
+  next: number | undefined,
+  learningRate: number,
+) {
+  if (next === undefined) {
+    return current;
+  }
+
+  if (current === undefined) {
+    return next;
+  }
+
+  return current * (1 - learningRate) + next * learningRate;
+}
+
+function updatePeak(
+  current: number | undefined,
+  next: number | undefined,
+  learningRate: number,
+) {
+  if (next === undefined) {
+    return current;
+  }
+
+  if (current === undefined) {
+    return next;
+  }
+
+  const blended = current * (1 - learningRate) + next * learningRate;
+
+  return Math.max(blended, next);
+}
+
+function getDeviationScore(
+  value: number | undefined,
+  mean: number | undefined,
+  typicalPeak: number | undefined,
+  margin: number,
+) {
+  if (value === undefined || mean === undefined) {
+    return 0;
+  }
+
+  const threshold = Math.max(mean + margin, (typicalPeak ?? mean) * 1.75);
+
+  if (threshold <= 0) {
+    return 0;
+  }
+
+  return value / threshold;
 }
 
 function maxDefined(values: (number | undefined)[]): number | undefined {

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   analyzeMotion,
   defaultMotionAnalysisConfig,
+  updateBehaviorProfile,
   type MotionSample,
 } from "@/lib/monitoring/motionAnalysis";
 
@@ -167,5 +168,59 @@ describe("motion analysis", () => {
     assert.equal(result.metrics.sustainedTilt, false);
     assert.equal(result.severity, "attention");
     assert.equal(result.alerts[0]?.id, "impact");
+  });
+
+  it("learns a behavior profile only from normal analysis windows", () => {
+    const normal = analyzeMotion(
+      Array.from({ length: 10 }, (_, index) => ({
+        timestamp: 1000 + index * 100,
+        acceleration: { x: 0, y: 0, z: 1 },
+        gyroscope: { x: 0.2, y: 0.1, z: 0.1 },
+        euler: { x: 4, y: 0, z: 3 },
+      })),
+    );
+
+    const learned = updateBehaviorProfile(undefined, normal, 2000);
+
+    assert.equal(learned?.sampleCount, 1);
+    assert.equal(learned?.updatedAt, 2000);
+
+    const impact = analyzeMotion([
+      {
+        timestamp: 3000,
+        acceleration: { x: 0, y: 0, z: 1.4 },
+      },
+    ]);
+
+    assert.equal(updateBehaviorProfile(learned, impact, 4000), learned);
+  });
+
+  it("flags movement that deviates from the learned behavior profile", () => {
+    const result = analyzeMotion(
+      [
+        {
+          timestamp: 1000,
+          acceleration: { x: 0, y: 0, z: 1.05 },
+          gyroscope: { x: 0.2, y: 0.1, z: 45 },
+          euler: { x: 4, y: 0, z: 3 },
+        },
+      ],
+      {
+        ...defaultMotionAnalysisConfig,
+        behaviorProfile: {
+          sampleCount: 20,
+          updatedAt: 900,
+          accelerationMagnitudeMeanG: 1,
+          accelerationMagnitudeTypicalPeakG: 1.1,
+          angularVelocityMeanDps: 1,
+          angularVelocityTypicalPeakDps: 5,
+          tiltMeanDegrees: 4,
+          tiltTypicalPeakDegrees: 8,
+        },
+      },
+    );
+
+    assert.equal(result.severity, "attention");
+    assert.equal(result.alerts[0]?.id, "unusual-motion");
   });
 });

@@ -192,6 +192,14 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
               label="Imobilidade"
               value={deviceState?.metrics.relativeInactivity ? "sim" : "nao"}
             />
+            <StatusMetric
+              label="Desvio perfil"
+              value={formatNumber(deviceState?.metrics.behaviorDeviationScore)}
+            />
+            <StatusMetric
+              label="Perfil"
+              value={`${deviceState?.metrics.learnedSampleCount ?? 0} ciclos`}
+            />
           </div>
         </section>
 

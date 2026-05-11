@@ -19,6 +19,8 @@ export type RemoteMotionMetrics = {
   maxTiltDegrees?: number;
   peakTiltDegrees?: number;
   restingTiltDegrees?: number;
+  behaviorDeviationScore?: number;
+  learnedSampleCount?: number;
   sustainedTilt: boolean;
   relativeInactivity: boolean;
   sampleCount: number;
@@ -34,8 +36,21 @@ export type RemoteTelemetrySample = {
   metrics: RemoteMotionMetrics;
 };
 
+export type RemoteBehaviorProfile = {
+  sampleCount: number;
+  updatedAt: number;
+  accelerationMagnitudeMeanG?: number;
+  accelerationMagnitudeTypicalPeakG?: number;
+  angularVelocityMeanDps?: number;
+  angularVelocityTypicalPeakDps?: number;
+  tiltMeanDegrees?: number;
+  tiltTypicalPeakDegrees?: number;
+};
+
 export type RemoteDeviceSettings = {
   restingEuler?: Vector3;
+  clearRestingEuler?: boolean;
+  behaviorProfile?: RemoteBehaviorProfile;
   updatedAt?: number;
 };
 

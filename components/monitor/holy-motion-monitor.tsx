@@ -9,6 +9,7 @@ import {
 import {
   analyzeMotion,
   defaultMotionAnalysisConfig,
+  updateBehaviorProfile,
   type MotionAnalysis,
   type MotionSample,
 } from "@/lib/monitoring/motionAnalysis";
@@ -26,6 +27,7 @@ import {
   stopVibration,
 } from "@/lib/monitoring/browserAlerts";
 import type { ParsedHolyMotionPacket, Quaternion, Vector3 } from "@/lib/ble/sensorTypes";
+import type { RemoteBehaviorProfile } from "@/lib/monitoring/remoteTypes";
 
 type AccelerationSample = Vector3 & {
   timestamp: number;
@@ -50,6 +52,7 @@ const DEFAULT_DEVICE_ID =
   process.env.NEXT_PUBLIC_REMOTE_DEVICE_ID ?? "holy-motion-001";
 const TELEMETRY_PUBLISH_INTERVAL_MS = 1000;
 const TELEMETRY_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const BEHAVIOR_PROFILE_SAVE_INTERVAL_MS = 15000;
 
 const statusLabels: Record<HolyMotionClientStatus, string> = {
   idle: "Aguardando",
@@ -68,6 +71,7 @@ const statusLabels: Record<HolyMotionClientStatus, string> = {
 export function HolyMotionMonitor() {
   const clientRef = useRef<HolyMotionClient | null>(null);
   const lastPublishAtRef = useRef(0);
+  const lastBehaviorProfileSaveAtRef = useRef(0);
   const publishedAlertKeysRef = useRef<Set<string>>(new Set());
   const vibratedAlertKeysRef = useRef<Set<string>>(new Set());
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
@@ -78,6 +82,9 @@ export function HolyMotionMonitor() {
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SensorSnapshot>({});
   const [restingEuler, setRestingEuler] = useState<Vector3 | undefined>();
+  const [behaviorProfile, setBehaviorProfile] = useState<
+    RemoteBehaviorProfile | undefined
+  >();
   const [peaks, setPeaks] = useState<SensorPeaks>({});
   const [accelerationSamples, setAccelerationSamples] = useState<
     AccelerationSample[]
@@ -138,8 +145,9 @@ export function HolyMotionMonitor() {
       analyzeMotion(motionSamples, {
         ...defaultMotionAnalysisConfig,
         restingEuler,
+        behaviorProfile,
       }),
-    [motionSamples, restingEuler],
+    [behaviorProfile, motionSamples, restingEuler],
   );
   const remoteConfigured = isTelemetryRemoteConfigured();
 
@@ -153,8 +161,9 @@ export function HolyMotionMonitor() {
       DEFAULT_DEVICE_ID,
       (settings) => {
         setRestingEuler(settings?.restingEuler);
+        setBehaviorProfile(settings?.behaviorProfile);
         setSettingsMessage(
-          settings?.restingEuler
+          settings?.restingEuler || settings?.behaviorProfile
             ? `Configuracao carregada: ${formatClock(settings.updatedAt ?? Date.now())}`
             : "Sem calibracao salva para este dispositivo.",
         );
@@ -164,6 +173,43 @@ export function HolyMotionMonitor() {
       },
     );
   }, [remoteConfigured]);
+
+  useEffect(() => {
+    if (motionAnalysis.metrics.sampleCount < 10) {
+      return;
+    }
+
+    const now = Date.now();
+
+    if (
+      now - lastBehaviorProfileSaveAtRef.current <
+      BEHAVIOR_PROFILE_SAVE_INTERVAL_MS
+    ) {
+      return;
+    }
+
+    const nextProfile = updateBehaviorProfile(behaviorProfile, motionAnalysis, now);
+
+    if (nextProfile === behaviorProfile) {
+      return;
+    }
+
+    lastBehaviorProfileSaveAtRef.current = now;
+    setBehaviorProfile(nextProfile);
+
+    if (!remoteConfigured || !nextProfile) {
+      return;
+    }
+
+    void saveDeviceSettings(DEFAULT_DEVICE_ID, {
+      behaviorProfile: nextProfile,
+      updatedAt: now,
+    }).catch((error: unknown) => {
+      setSettingsMessage(
+        `Falha ao salvar perfil aprendido: ${getFirebaseAuthErrorMessage(error)}`,
+      );
+    });
+  }, [behaviorProfile, motionAnalysis, remoteConfigured]);
 
   useEffect(() => {
     if (!remoteConfigured) {
@@ -359,7 +405,10 @@ export function HolyMotionMonitor() {
 
     setSettingsMessage("Removendo calibracao do dispositivo...");
 
-    void saveDeviceSettings(DEFAULT_DEVICE_ID, { updatedAt })
+    void saveDeviceSettings(DEFAULT_DEVICE_ID, {
+      clearRestingEuler: true,
+      updatedAt,
+    })
       .then(() => {
         setSettingsMessage(`Calibracao removida: ${formatClock(updatedAt)}`);
       })
@@ -448,6 +497,7 @@ export function HolyMotionMonitor() {
         ) : null}
 
         <RestingCalibrationPanel
+          behaviorProfile={behaviorProfile}
           restingEuler={restingEuler}
           settingsMessage={settingsMessage}
         />
@@ -502,9 +552,11 @@ export function HolyMotionMonitor() {
 }
 
 function RestingCalibrationPanel({
+  behaviorProfile,
   restingEuler,
   settingsMessage,
 }: {
+  behaviorProfile?: RemoteBehaviorProfile;
   restingEuler?: Vector3;
   settingsMessage: string | null;
 }) {
@@ -527,6 +579,27 @@ function RestingCalibrationPanel({
           <MetricPill label="Pitch" unit="deg" value={restingEuler?.y} />
           <MetricPill label="Yaw" unit="deg" value={restingEuler?.z} />
         </div>
+      </div>
+      <div className="mt-4 grid gap-2 text-sm sm:grid-cols-4">
+        <TextPill
+          label="Perfil aprendido"
+          value={`${behaviorProfile?.sampleCount ?? 0} ciclos`}
+        />
+        <MetricPill
+          label="Acel. habitual"
+          unit="g"
+          value={behaviorProfile?.accelerationMagnitudeMeanG}
+        />
+        <MetricPill
+          label="Giro habitual"
+          unit="deg/s"
+          value={behaviorProfile?.angularVelocityMeanDps}
+        />
+        <MetricPill
+          label="Incl. habitual"
+          unit="deg"
+          value={behaviorProfile?.tiltMeanDegrees}
+        />
       </div>
     </section>
   );
@@ -632,6 +705,15 @@ function AttentionPanel({ analysis }: { analysis: MotionAnalysis }) {
           <TextPill
             label="Imobilidade"
             value={analysis.metrics.relativeInactivity ? "sim" : "nao"}
+          />
+          <MetricPill
+            label="Desvio perfil"
+            unit="x"
+            value={analysis.metrics.behaviorDeviationScore}
+          />
+          <TextPill
+            label="Amostras perfil"
+            value={String(analysis.metrics.learnedSampleCount ?? 0)}
           />
         </div>
       </div>

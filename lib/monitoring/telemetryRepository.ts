@@ -105,15 +105,22 @@ export async function saveDeviceSettings(
   await ensureFirebaseAuth();
 
   const deviceRef = doc(db, "devices", deviceId);
+  const settingsPayload = removeUndefinedValues({
+    updatedAt: settings.updatedAt ?? Date.now(),
+    restingEuler:
+      settings.clearRestingEuler === true
+        ? deleteField()
+        : "restingEuler" in settings
+          ? settings.restingEuler
+          : undefined,
+    behaviorProfile: settings.behaviorProfile,
+  });
 
   await setDoc(
     deviceRef,
     {
       deviceId,
-      settings: {
-        updatedAt: settings.updatedAt ?? Date.now(),
-        restingEuler: settings.restingEuler ?? deleteField(),
-      },
+      settings: settingsPayload,
       settingsServerUpdatedAt: serverTimestamp(),
     },
     { merge: true },

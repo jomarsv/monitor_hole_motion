@@ -72,6 +72,11 @@ executa limpeza automatica de telemetria antiga em lotes de ate 50 documentos,
 mantendo por padrao os ultimos 7 dias de amostras em
 `devices/{deviceId}/telemetry`.
 
+O app tambem aprende um perfil estatistico por dispositivo em
+`settings.behaviorProfile`. Esse perfil e atualizado somente quando a analise
+esta normal e guarda medias/picos habituais de aceleracao, giro e inclinacao
+para detectar movimento fora do padrao aprendido.
+
 ## Alertas no celular
 
 A rota remota registra `/sw.js` como service worker e usa
