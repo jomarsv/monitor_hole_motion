@@ -15,6 +15,7 @@ import {
   type BrowserAlertSupport,
 } from "@/lib/monitoring/browserAlerts";
 import type {
+  RemoteAiClassification,
   RemoteAlertEvent,
   RemoteDeviceState,
   RemoteTelemetrySample,
@@ -199,6 +200,14 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
             <StatusMetric
               label="Perfil"
               value={`${deviceState?.metrics.learnedSampleCount ?? 0} ciclos`}
+            />
+            <StatusMetric
+              label="Postura IA"
+              value={formatAiClassificationLabel(deviceState?.aiClassification?.posture)}
+            />
+            <StatusMetric
+              label="Atividade IA"
+              value={formatAiClassificationLabel(deviceState?.aiClassification?.activity)}
             />
           </div>
         </section>
@@ -469,6 +478,41 @@ function formatTimestamp(timestamp?: number) {
     minute: "2-digit",
     second: "2-digit",
   }).format(timestamp);
+}
+
+function formatAiClassificationLabel(
+  value?: RemoteAiClassification["posture"] | RemoteAiClassification["activity"],
+) {
+  if (!value) {
+    return "sem dados";
+  }
+
+  switch (value) {
+    case "em-pe":
+      return "em pe";
+    case "deitado":
+      return "deitado";
+    case "sentado":
+      return "sentado";
+    case "andando":
+      return "andando";
+    case "parado":
+      return "parado";
+    case "transicao":
+      return "transicao";
+    case "repouso":
+      return "repouso";
+    case "movimento-leve":
+      return "movimento leve";
+    case "caminhada":
+      return "caminhada";
+    case "mudanca-de-postura":
+      return "mudanca postura";
+    case "movimento-brusco":
+      return "movimento brusco";
+    case "indefinido":
+      return "indefinido";
+  }
 }
 
 function getAlertScreenClass(severity: RemoteDeviceState["severity"] | "normal") {

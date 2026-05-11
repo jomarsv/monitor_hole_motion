@@ -29,11 +29,16 @@ import {
 } from "@/lib/monitoring/browserAlerts";
 import type { ParsedHolyMotionPacket, Quaternion, Vector3 } from "@/lib/ble/sensorTypes";
 import type {
+  AiActivityLabel,
   AiAlertDecision,
   AiAlertDecisionInput,
+  AiPostureLabel,
   WindowStats,
 } from "@/lib/ai/alertDecisionTypes";
-import type { RemoteBehaviorProfile } from "@/lib/monitoring/remoteTypes";
+import type {
+  RemoteAiClassification,
+  RemoteBehaviorProfile,
+} from "@/lib/monitoring/remoteTypes";
 
 type AccelerationSample = Vector3 & {
   timestamp: number;
@@ -89,6 +94,8 @@ export function HolyMotionMonitor() {
   const [remoteMessage, setRemoteMessage] = useState<string | null>(null);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiAlert, setAiAlert] = useState<MotionAlert | null>(null);
+  const [aiClassification, setAiClassification] =
+    useState<RemoteAiClassification | null>(null);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SensorSnapshot>({});
@@ -255,12 +262,20 @@ export function HolyMotionMonitor() {
       .then((decision) => {
         if (!decision.configured) {
           setAiAlert(null);
+          setAiClassification(null);
           setAiMessage("IA: configure OPENAI_API_KEY no servidor para ativar.");
           return;
         }
 
+        setAiClassification({
+          posture: decision.posture,
+          activity: decision.activity,
+          confidence: decision.confidence,
+          rationale: decision.rationale,
+          updatedAt: now,
+        });
         setAiMessage(
-          `IA: ${decision.shouldAlert ? "alerta sugerido" : "sem alerta"} (${Math.round(decision.confidence * 100)}%). ${decision.rationale}`,
+          `IA: ${formatPostureLabel(decision.posture)}, ${formatActivityLabel(decision.activity)} (${Math.round(decision.confidence * 100)}%). ${decision.shouldAlert ? "Alerta sugerido." : "Sem alerta."} ${decision.rationale}`,
         );
 
         if (!decision.shouldAlert || decision.confidence < 0.55) {
@@ -280,6 +295,7 @@ export function HolyMotionMonitor() {
         setAiMessage(
           `IA indisponivel: ${error instanceof Error ? error.message : String(error)}`,
         );
+        setAiClassification(null);
       });
   }, [behaviorProfile, motionAnalysis, motionSamples]);
 
@@ -358,6 +374,7 @@ export function HolyMotionMonitor() {
       severity: combinedAnalysis.severity,
       snapshot,
       metrics: combinedAnalysis.metrics,
+      aiClassification: aiClassification ?? undefined,
     })
       .then(() => {
         setRemoteMessage(`Ultimo envio remoto: ${formatClock(now)}`);
@@ -367,7 +384,14 @@ export function HolyMotionMonitor() {
         setRemoteMessage(`Falha no envio remoto: ${message}`);
         setErrorMessage(message);
       });
-  }, [combinedAnalysis, motionSamples.length, remoteConfigured, snapshot, status]);
+  }, [
+    aiClassification,
+    combinedAnalysis,
+    motionSamples.length,
+    remoteConfigured,
+    snapshot,
+    status,
+  ]);
 
   useEffect(() => {
     if (!remoteConfigured || combinedAnalysis.alerts.length === 0) {
@@ -589,6 +613,8 @@ export function HolyMotionMonitor() {
           settingsMessage={settingsMessage}
         />
 
+        <AiClassificationPanel aiClassification={aiClassification} />
+
         <AttentionPanel analysis={combinedAnalysis} />
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -687,6 +713,57 @@ function RestingCalibrationPanel({
           unit="deg"
           value={behaviorProfile?.tiltMeanDegrees}
         />
+      </div>
+    </section>
+  );
+}
+
+function AiClassificationPanel({
+  aiClassification,
+}: {
+  aiClassification: RemoteAiClassification | null;
+}) {
+  return (
+    <section className="rounded-lg border border-[#dce8e4] bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#5f6f6a]">
+            Analise IA
+          </p>
+          <h2 className="mt-1 text-lg font-semibold">
+            {aiClassification
+              ? `${formatPostureLabel(aiClassification.posture)} · ${formatActivityLabel(aiClassification.activity)}`
+              : "Sem classificacao recente"}
+          </h2>
+          <p className="mt-1 text-sm text-[#5f6f6a]">
+            {aiClassification
+              ? aiClassification.rationale
+              : "A IA classifica postura e atividade quando a rota server-side esta ativa."}
+          </p>
+        </div>
+        <div className="grid gap-2 text-sm sm:grid-cols-3">
+          <TextPill
+            label="Postura"
+            value={
+              aiClassification
+                ? formatPostureLabel(aiClassification.posture)
+                : "indefinido"
+            }
+          />
+          <TextPill
+            label="Atividade"
+            value={
+              aiClassification
+                ? formatActivityLabel(aiClassification.activity)
+                : "indefinido"
+            }
+          />
+          <MetricPill
+            label="Confianca"
+            unit=""
+            value={aiClassification?.confidence}
+          />
+        </div>
       </div>
     </section>
   );
@@ -1304,6 +1381,42 @@ function formatClock(timestamp: number) {
     minute: "2-digit",
     second: "2-digit",
   }).format(timestamp);
+}
+
+function formatPostureLabel(posture: AiPostureLabel) {
+  switch (posture) {
+    case "em-pe":
+      return "Em pe";
+    case "deitado":
+      return "Deitado";
+    case "sentado":
+      return "Sentado";
+    case "andando":
+      return "Andando";
+    case "parado":
+      return "Parado";
+    case "transicao":
+      return "Em transicao";
+    case "indefinido":
+      return "Indefinido";
+  }
+}
+
+function formatActivityLabel(activity: AiActivityLabel) {
+  switch (activity) {
+    case "repouso":
+      return "Repouso";
+    case "movimento-leve":
+      return "Movimento leve";
+    case "caminhada":
+      return "Caminhada";
+    case "mudanca-de-postura":
+      return "Mudanca de postura";
+    case "movimento-brusco":
+      return "Movimento brusco";
+    case "indefinido":
+      return "Indefinido";
+  }
 }
 
 function getAlertScreenClass(severity: MotionAnalysis["severity"]) {

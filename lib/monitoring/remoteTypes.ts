@@ -1,5 +1,9 @@
 import type { MotionAlert, MotionSeverity } from "@/lib/monitoring/motionAnalysis";
 import type { Quaternion, Vector3 } from "@/lib/ble/sensorTypes";
+import type {
+  AiActivityLabel,
+  AiPostureLabel,
+} from "@/lib/ai/alertDecisionTypes";
 
 export type RemoteDeviceStatus = "offline" | "online";
 
@@ -26,6 +30,14 @@ export type RemoteMotionMetrics = {
   sampleCount: number;
 };
 
+export type RemoteAiClassification = {
+  posture: AiPostureLabel;
+  activity: AiActivityLabel;
+  confidence: number;
+  rationale: string;
+  updatedAt: number;
+};
+
 export type RemoteTelemetrySample = {
   id?: string;
   deviceId: string;
@@ -34,6 +46,7 @@ export type RemoteTelemetrySample = {
   severity: MotionSeverity;
   snapshot: RemoteSensorSnapshot;
   metrics: RemoteMotionMetrics;
+  aiClassification?: RemoteAiClassification;
 };
 
 export type RemoteBehaviorProfile = {
@@ -68,5 +81,6 @@ export type RemoteDeviceState = {
   severity: MotionSeverity;
   snapshot: RemoteSensorSnapshot;
   metrics: RemoteMotionMetrics;
+  aiClassification?: RemoteAiClassification;
   settings?: RemoteDeviceSettings;
 };
