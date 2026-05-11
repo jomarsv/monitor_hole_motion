@@ -13,6 +13,7 @@ import {
   type MotionSample,
 } from "@/lib/monitoring/motionAnalysis";
 import {
+  cleanupOldTelemetry,
   isTelemetryRemoteConfigured,
   publishAlertEvent,
   publishTelemetrySample,
@@ -48,6 +49,7 @@ const MAX_SAMPLES = 500;
 const DEFAULT_DEVICE_ID =
   process.env.NEXT_PUBLIC_REMOTE_DEVICE_ID ?? "holy-motion-001";
 const TELEMETRY_PUBLISH_INTERVAL_MS = 1000;
+const TELEMETRY_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 const statusLabels: Record<HolyMotionClientStatus, string> = {
   idle: "Aguardando",
@@ -72,6 +74,7 @@ export function HolyMotionMonitor() {
   const [status, setStatus] = useState<HolyMotionClientStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [remoteMessage, setRemoteMessage] = useState<string | null>(null);
+  const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SensorSnapshot>({});
   const [restingEuler, setRestingEuler] = useState<Vector3 | undefined>();
@@ -160,6 +163,49 @@ export function HolyMotionMonitor() {
         setSettingsMessage(`Falha ao carregar configuracao: ${error.message}`);
       },
     );
+  }, [remoteConfigured]);
+
+  useEffect(() => {
+    if (!remoteConfigured) {
+      return;
+    }
+
+    let active = true;
+
+    async function runCleanup() {
+      try {
+        const deletedCount = await cleanupOldTelemetry(DEFAULT_DEVICE_ID);
+
+        if (!active) {
+          return;
+        }
+
+        setCleanupMessage(
+          deletedCount > 0
+            ? `Limpeza automatica: ${deletedCount} amostras antigas removidas.`
+            : `Limpeza automatica: nada antigo para remover (${formatClock(Date.now())}).`,
+        );
+      } catch (error: unknown) {
+        if (!active) {
+          return;
+        }
+
+        setCleanupMessage(
+          `Falha na limpeza automatica: ${getFirebaseAuthErrorMessage(error)}`,
+        );
+      }
+    }
+
+    void runCleanup();
+    const intervalId = window.setInterval(
+      () => void runCleanup(),
+      TELEMETRY_CLEANUP_INTERVAL_MS,
+    );
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
   }, [remoteConfigured]);
 
   useEffect(() => {
@@ -350,6 +396,9 @@ export function HolyMotionMonitor() {
             </p>
             {remoteMessage ? (
               <p className="mt-1 text-sm text-[#5f6f6a]">{remoteMessage}</p>
+            ) : null}
+            {cleanupMessage ? (
+              <p className="mt-1 text-sm text-[#5f6f6a]">{cleanupMessage}</p>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-3">

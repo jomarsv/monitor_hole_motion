@@ -67,6 +67,11 @@ O documento `devices/{deviceId}` tambem guarda `settings`, incluindo a
 calibracao de repouso (`settings.restingEuler`) usada pelo monitor para calcular
 inclinacao relativa por dispositivo.
 
+A rota `/history/{deviceId}` exibe o historico de alertas. A tela `/monitor`
+executa limpeza automatica de telemetria antiga em lotes de ate 50 documentos,
+mantendo por padrao os ultimos 7 dias de amostras em
+`devices/{deviceId}/telemetry`.
+
 ## Alertas no celular
 
 A rota remota registra `/sw.js` como service worker e usa
@@ -100,7 +105,8 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow create, update: if isSignedIn()
           && request.resource.data.deviceId == deviceId;
-        allow delete: if false;
+        allow delete: if isSignedIn()
+          && resource.data.deviceId == deviceId;
       }
 
       match /alerts/{alertId} {

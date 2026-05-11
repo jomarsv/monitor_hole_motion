@@ -2,13 +2,16 @@ import {
   addDoc,
   collection,
   deleteField,
+  deleteDoc,
   doc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
+  where,
   type Unsubscribe,
 } from "firebase/firestore";
 import {
@@ -25,6 +28,9 @@ import type {
 
 const TELEMETRY_HISTORY_LIMIT = 120;
 const ALERT_HISTORY_LIMIT = 30;
+const ALERT_HISTORY_PAGE_LIMIT = 200;
+const TELEMETRY_CLEANUP_BATCH_LIMIT = 50;
+export const TELEMETRY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function isTelemetryRemoteConfigured(): boolean {
   return getFirebaseDb() !== null;
@@ -112,6 +118,33 @@ export async function saveDeviceSettings(
     },
     { merge: true },
   );
+}
+
+export async function cleanupOldTelemetry(
+  deviceId: string,
+  retentionMs = TELEMETRY_RETENTION_MS,
+): Promise<number> {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    return 0;
+  }
+
+  await ensureFirebaseAuth();
+
+  const cutoff = Date.now() - retentionMs;
+  const snapshot = await getDocs(
+    query(
+      collection(db, "devices", deviceId, "telemetry"),
+      where("timestamp", "<", cutoff),
+      orderBy("timestamp", "asc"),
+      limit(TELEMETRY_CLEANUP_BATCH_LIMIT),
+    ),
+  );
+
+  await Promise.all(snapshot.docs.map((document) => deleteDoc(document.ref)));
+
+  return snapshot.size;
 }
 
 export function subscribeRemoteDevice(
@@ -213,6 +246,7 @@ export function subscribeAlertHistory(
   deviceId: string,
   onChange: (alerts: RemoteAlertEvent[]) => void,
   onError: (error: Error) => void,
+  historyLimit = ALERT_HISTORY_LIMIT,
 ): Unsubscribe {
   const db = getFirebaseDb();
 
@@ -227,7 +261,7 @@ export function subscribeAlertHistory(
         query(
           collection(db, "devices", deviceId, "alerts"),
           orderBy("detectedAt", "desc"),
-          limit(ALERT_HISTORY_LIMIT),
+          limit(historyLimit),
         ),
         (snapshot) => {
           onChange(
@@ -244,6 +278,19 @@ export function subscribeAlertHistory(
         onError,
       ),
     onError,
+  );
+}
+
+export function subscribeFullAlertHistory(
+  deviceId: string,
+  onChange: (alerts: RemoteAlertEvent[]) => void,
+  onError: (error: Error) => void,
+): Unsubscribe {
+  return subscribeAlertHistory(
+    deviceId,
+    onChange,
+    onError,
+    ALERT_HISTORY_PAGE_LIMIT,
   );
 }
 

@@ -229,7 +229,15 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
         <section className="rounded-lg border border-[#dce8e4] bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Alertas recentes</h2>
-            <span className="text-sm text-[#5f6f6a]">{alerts.length} eventos</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-[#5f6f6a]">{alerts.length} eventos</span>
+              <a
+                className="text-sm font-semibold text-brand-600 hover:text-brand-500"
+                href={`/history/${deviceId}`}
+              >
+                Ver historico
+              </a>
+            </div>
           </div>
           <div className="mt-4 grid gap-3">
             {alerts.length === 0 ? (

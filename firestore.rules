@@ -16,7 +16,8 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow create, update: if isSignedIn()
           && request.resource.data.deviceId == deviceId;
-        allow delete: if false;
+        allow delete: if isSignedIn()
+          && resource.data.deviceId == deviceId;
       }
 
       match /alerts/{alertId} {

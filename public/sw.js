@@ -3,6 +3,7 @@ const SHELL_URLS = [
   "/",
   "/monitor",
   "/remote/holy-motion-001",
+  "/history/holy-motion-001",
   "/manifest.webmanifest",
   "/pwa-icon.svg"
 ];
