@@ -847,6 +847,7 @@ function buildAiAlertDecisionInput({
     localAlertIds: analysis.alerts.map((alert) => alert.id),
     metrics: analysis.metrics,
     behaviorProfile,
+    heuristicClassification: classifyPostureHeuristically(recentSamples, analysis),
     recentWindow: {
       sampleCount: recentSamples.length,
       durationMs:
@@ -868,6 +869,17 @@ function buildAiAlertDecisionInput({
             : undefined,
         ),
       ),
+      verticalAcceleration: getWindowStats(
+        recentSamples.map((sample) => sample.acceleration?.z),
+      ),
+      horizontalAcceleration: getWindowStats(
+        recentSamples.map((sample) =>
+          sample.acceleration
+            ? Math.sqrt(sample.acceleration.x ** 2 + sample.acceleration.y ** 2)
+            : undefined,
+        ),
+      ),
+      motionBursts: countMotionBursts(recentSamples),
     },
   };
 }
@@ -909,6 +921,100 @@ function getWindowStats(values: (number | undefined)[]): WindowStats {
 
 function vectorMagnitude(vector: Vector3): number {
   return Math.sqrt(vector.x ** 2 + vector.y ** 2 + vector.z ** 2);
+}
+
+function classifyPostureHeuristically(
+  samples: MotionSample[],
+  analysis: MotionAnalysis,
+): {
+  posture: AiPostureLabel;
+  activity: AiActivityLabel;
+  confidence: number;
+  rationale: string;
+} {
+  const tilt = analysis.metrics.maxTiltDegrees ?? 0;
+  const gyro = analysis.metrics.angularVelocityMagnitudeDps ?? 0;
+  const accel = analysis.metrics.accelerationMagnitudeG ?? 0;
+  const bursts = countMotionBursts(samples);
+  const horizontalMean = getWindowStats(
+    samples.map((sample) =>
+      sample.acceleration
+        ? Math.sqrt(sample.acceleration.x ** 2 + sample.acceleration.y ** 2)
+        : undefined,
+    ),
+  ).mean ?? 0;
+
+  if (tilt >= 70) {
+    return {
+      posture: "deitado",
+      activity: gyro > 20 ? "mudanca-de-postura" : "repouso",
+      confidence: 0.82,
+      rationale: "Inclinacao alta e persistente compatível com decubito.",
+    };
+  }
+
+  if (bursts >= 6 && gyro >= 18 && horizontalMean >= 0.12) {
+    return {
+      posture: "andando",
+      activity: "caminhada",
+      confidence: 0.84,
+      rationale: "Rajadas ritmicas com giro e componente horizontal compatíveis com caminhada.",
+    };
+  }
+
+  if (gyro < 3 && Math.abs(accel - 1) < 0.08 && tilt < 20) {
+    return {
+      posture: "parado",
+      activity: "repouso",
+      confidence: 0.7,
+      rationale: "Baixa variacao com sensor praticamente estabilizado.",
+    };
+  }
+
+  if (tilt >= 35 && tilt < 70 && gyro < 10) {
+    return {
+      posture: "sentado",
+      activity: "repouso",
+      confidence: 0.66,
+      rationale: "Inclinacao moderada sem dinamica típica de caminhada.",
+    };
+  }
+
+  return {
+    posture: "em-pe",
+    activity: gyro >= 8 ? "movimento-leve" : "repouso",
+    confidence: 0.58,
+    rationale: "Postura ereta sem evidencias fortes de outra classe.",
+  };
+}
+
+function countMotionBursts(samples: MotionSample[]) {
+  let bursts = 0;
+  let previousAboveThreshold = false;
+
+  for (const sample of samples) {
+    if (!sample.acceleration || !sample.gyroscope) {
+      continue;
+    }
+
+    const accelMagnitude = vectorMagnitude(sample.acceleration);
+    const horizontalMagnitude = Math.sqrt(
+      sample.acceleration.x ** 2 + sample.acceleration.y ** 2,
+    );
+    const gyroMagnitude = vectorMagnitude(sample.gyroscope);
+    const isAboveThreshold =
+      Math.abs(accelMagnitude - 1) >= 0.12 ||
+      horizontalMagnitude >= 0.12 ||
+      gyroMagnitude >= 18;
+
+    if (isAboveThreshold && !previousAboveThreshold) {
+      bursts += 1;
+    }
+
+    previousAboveThreshold = isAboveThreshold;
+  }
+
+  return bursts;
 }
 
 function AttentionPanel({ analysis }: { analysis: MotionAnalysis }) {

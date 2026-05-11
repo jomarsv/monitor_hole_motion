@@ -25,12 +25,21 @@ export type AiAlertDecisionInput = {
   localAlertIds: string[];
   metrics: MotionAnalysis["metrics"];
   behaviorProfile?: RemoteBehaviorProfile;
+  heuristicClassification: {
+    posture: AiPostureLabel;
+    activity: AiActivityLabel;
+    confidence: number;
+    rationale: string;
+  };
   recentWindow: {
     sampleCount: number;
     durationMs: number;
     accelerationMagnitude: WindowStats;
     angularVelocityMagnitude: WindowStats;
     tiltDegrees: WindowStats;
+    verticalAcceleration: WindowStats;
+    horizontalAcceleration: WindowStats;
+    motionBursts: number;
   };
 };
 

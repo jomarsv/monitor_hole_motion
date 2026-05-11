@@ -73,7 +73,7 @@ export async function getAiAlertDecision(
         {
           role: "system",
           content:
-            "Voce e uma camada auxiliar de decisao para monitoramento assistivo de movimento. Responda apenas pelo schema. Classifique a postura e a atividade atual do usuario com base nos sinais resumidos usando labels simples como em-pe, deitado, sentado, andando, parado ou transicao. Nao substitua regras deterministicas: quando o sinal for incerto, prefira normal ou attention, nunca critical. Critical deve ser usado apenas quando os dados indicarem risco claro por combinacao de impacto, baixa mobilidade, inclinacao ou desvio extremo do perfil aprendido. Isto nao e diagnostico medico.",
+            "Voce e uma camada auxiliar de decisao para monitoramento assistivo de movimento. Responda apenas pelo schema. Classifique a postura e a atividade atual do usuario com base nos sinais resumidos usando labels simples como em-pe, deitado, sentado, andando, parado ou transicao. Leve a classificacao heuristica recebida muito a serio como ancora fisica inicial, principalmente quando houver indicios de caminhada ou baixa inclinacao. Evite rotular como sentado se houver caminhada clara. Nao substitua regras deterministicas: quando o sinal for incerto, prefira normal ou attention, nunca critical. Critical deve ser usado apenas quando os dados indicarem risco claro por combinacao de impacto, baixa mobilidade, inclinacao ou desvio extremo do perfil aprendido. Isto nao e diagnostico medico.",
         },
         {
           role: "user",
@@ -100,7 +100,7 @@ export async function getAiAlertDecision(
   const outputText = extractOutputText(payload);
   const parsed = JSON.parse(outputText) as Omit<AiAlertDecision, "configured">;
 
-  return {
+  return normalizeDecision({
     configured: true,
     shouldAlert: parsed.shouldAlert,
     severity: normalizeSeverity(parsed.severity, parsed.shouldAlert),
@@ -110,7 +110,7 @@ export async function getAiAlertDecision(
     title: parsed.title || "Analise IA",
     message: parsed.message || "A IA sinalizou um padrao que merece revisao.",
     rationale: parsed.rationale || "Sem justificativa detalhada.",
-  };
+  }, input);
 }
 
 function getUnconfiguredDecision(): AiAlertDecision {
@@ -168,6 +168,52 @@ function clampConfidence(confidence: number): number {
   }
 
   return Math.max(0, Math.min(1, confidence));
+}
+
+function normalizeDecision(
+  decision: AiAlertDecision,
+  input: AiAlertDecisionInput,
+): AiAlertDecision {
+  const heuristic = input.heuristicClassification;
+
+  if (heuristic.confidence < 0.65) {
+    return decision;
+  }
+
+  if (
+    heuristic.activity === "caminhada" &&
+    (decision.posture === "sentado" || decision.posture === "parado")
+  ) {
+    return {
+      ...decision,
+      posture: "andando",
+      activity: "caminhada",
+      confidence: Math.max(decision.confidence, heuristic.confidence),
+      rationale: `${decision.rationale} Ajustado por heuristica local de caminhada.`,
+    };
+  }
+
+  if (
+    heuristic.posture === "deitado" &&
+    decision.posture !== "deitado" &&
+    (input.metrics.maxTiltDegrees ?? 0) >= 70
+  ) {
+    return {
+      ...decision,
+      posture: "deitado",
+      confidence: Math.max(decision.confidence, heuristic.confidence),
+      rationale: `${decision.rationale} Ajustado por inclinacao sustentada compatível com decubito.`,
+    };
+  }
+
+  return decision;
+}
+
+export function normalizeAiClassificationForTest(
+  decision: AiAlertDecision,
+  input: AiAlertDecisionInput,
+) {
+  return normalizeDecision(decision, input);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
