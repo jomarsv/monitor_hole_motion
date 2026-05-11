@@ -77,6 +77,21 @@ O app tambem aprende um perfil estatistico por dispositivo em
 esta normal e guarda medias/picos habituais de aceleracao, giro e inclinacao
 para detectar movimento fora do padrao aprendido.
 
+## Analise com IA
+
+A rota server-side `/api/ai/alert-decision` pode usar a OpenAI Responses API para
+revisar um resumo numerico da janela recente e decidir se o evento deve virar
+alerta. A chave fica apenas no servidor:
+
+```bash
+OPENAI_API_KEY="..."
+AI_ALERT_MODEL="gpt-4o-mini"
+```
+
+Se `OPENAI_API_KEY` nao estiver configurada, o app continua usando somente as
+regras locais e o perfil estatistico. A IA e tratada como camada auxiliar; os
+alertas deterministas continuam sendo a fonte primaria para eventos criticos.
+
 ## Alertas no celular
 
 A rota remota registra `/sw.js` como service worker e usa

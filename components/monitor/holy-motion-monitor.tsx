@@ -11,6 +11,7 @@ import {
   defaultMotionAnalysisConfig,
   updateBehaviorProfile,
   type MotionAnalysis,
+  type MotionAlert,
   type MotionSample,
 } from "@/lib/monitoring/motionAnalysis";
 import {
@@ -27,6 +28,11 @@ import {
   stopVibration,
 } from "@/lib/monitoring/browserAlerts";
 import type { ParsedHolyMotionPacket, Quaternion, Vector3 } from "@/lib/ble/sensorTypes";
+import type {
+  AiAlertDecision,
+  AiAlertDecisionInput,
+  WindowStats,
+} from "@/lib/ai/alertDecisionTypes";
 import type { RemoteBehaviorProfile } from "@/lib/monitoring/remoteTypes";
 
 type AccelerationSample = Vector3 & {
@@ -53,6 +59,8 @@ const DEFAULT_DEVICE_ID =
 const TELEMETRY_PUBLISH_INTERVAL_MS = 1000;
 const TELEMETRY_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const BEHAVIOR_PROFILE_SAVE_INTERVAL_MS = 15000;
+const AI_ALERT_DECISION_INTERVAL_MS = 30000;
+const AI_ALERT_EXPIRATION_MS = 60000;
 
 const statusLabels: Record<HolyMotionClientStatus, string> = {
   idle: "Aguardando",
@@ -72,12 +80,15 @@ export function HolyMotionMonitor() {
   const clientRef = useRef<HolyMotionClient | null>(null);
   const lastPublishAtRef = useRef(0);
   const lastBehaviorProfileSaveAtRef = useRef(0);
+  const lastAiDecisionAtRef = useRef(0);
   const publishedAlertKeysRef = useRef<Set<string>>(new Set());
   const vibratedAlertKeysRef = useRef<Set<string>>(new Set());
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
   const [status, setStatus] = useState<HolyMotionClientStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [remoteMessage, setRemoteMessage] = useState<string | null>(null);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
+  const [aiAlert, setAiAlert] = useState<MotionAlert | null>(null);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SensorSnapshot>({});
@@ -149,6 +160,10 @@ export function HolyMotionMonitor() {
       }),
     [behaviorProfile, motionSamples, restingEuler],
   );
+  const combinedAnalysis = useMemo(
+    () => mergeAiAlert(motionAnalysis, aiAlert),
+    [aiAlert, motionAnalysis],
+  );
   const remoteConfigured = isTelemetryRemoteConfigured();
 
   useEffect(() => {
@@ -175,7 +190,7 @@ export function HolyMotionMonitor() {
   }, [remoteConfigured]);
 
   useEffect(() => {
-    if (motionAnalysis.metrics.sampleCount < 10) {
+    if (combinedAnalysis.metrics.sampleCount < 10) {
       return;
     }
 
@@ -188,7 +203,11 @@ export function HolyMotionMonitor() {
       return;
     }
 
-    const nextProfile = updateBehaviorProfile(behaviorProfile, motionAnalysis, now);
+    const nextProfile = updateBehaviorProfile(
+      behaviorProfile,
+      combinedAnalysis,
+      now,
+    );
 
     if (nextProfile === behaviorProfile) {
       return;
@@ -209,7 +228,72 @@ export function HolyMotionMonitor() {
         `Falha ao salvar perfil aprendido: ${getFirebaseAuthErrorMessage(error)}`,
       );
     });
-  }, [behaviorProfile, motionAnalysis, remoteConfigured]);
+  }, [behaviorProfile, combinedAnalysis, remoteConfigured]);
+
+  useEffect(() => {
+    if (motionSamples.length < 20) {
+      return;
+    }
+
+    const now = Date.now();
+
+    if (now - lastAiDecisionAtRef.current < AI_ALERT_DECISION_INTERVAL_MS) {
+      return;
+    }
+
+    lastAiDecisionAtRef.current = now;
+
+    const input = buildAiAlertDecisionInput({
+      deviceId: DEFAULT_DEVICE_ID,
+      samples: motionSamples,
+      analysis: motionAnalysis,
+      behaviorProfile,
+      timestamp: now,
+    });
+
+    void requestAiAlertDecision(input)
+      .then((decision) => {
+        if (!decision.configured) {
+          setAiAlert(null);
+          setAiMessage("IA: configure OPENAI_API_KEY no servidor para ativar.");
+          return;
+        }
+
+        setAiMessage(
+          `IA: ${decision.shouldAlert ? "alerta sugerido" : "sem alerta"} (${Math.round(decision.confidence * 100)}%). ${decision.rationale}`,
+        );
+
+        if (!decision.shouldAlert || decision.confidence < 0.55) {
+          setAiAlert(null);
+          return;
+        }
+
+        setAiAlert({
+          id: "ai-alert",
+          title: decision.title || "Analise IA",
+          message: decision.message,
+          severity: decision.severity === "critical" ? "critical" : "attention",
+          detectedAt: now,
+        });
+      })
+      .catch((error: unknown) => {
+        setAiMessage(
+          `IA indisponivel: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }, [behaviorProfile, motionAnalysis, motionSamples]);
+
+  useEffect(() => {
+    if (!aiAlert) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setAiAlert(null);
+    }, AI_ALERT_EXPIRATION_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [aiAlert]);
 
   useEffect(() => {
     if (!remoteConfigured) {
@@ -271,9 +355,9 @@ export function HolyMotionMonitor() {
       deviceId: DEFAULT_DEVICE_ID,
       timestamp: now,
       bleStatus: status,
-      severity: motionAnalysis.severity,
+      severity: combinedAnalysis.severity,
       snapshot,
-      metrics: motionAnalysis.metrics,
+      metrics: combinedAnalysis.metrics,
     })
       .then(() => {
         setRemoteMessage(`Ultimo envio remoto: ${formatClock(now)}`);
@@ -283,18 +367,18 @@ export function HolyMotionMonitor() {
         setRemoteMessage(`Falha no envio remoto: ${message}`);
         setErrorMessage(message);
       });
-  }, [motionAnalysis, motionSamples.length, remoteConfigured, snapshot, status]);
+  }, [combinedAnalysis, motionSamples.length, remoteConfigured, snapshot, status]);
 
   useEffect(() => {
-    if (!remoteConfigured || motionAnalysis.alerts.length === 0) {
-      if (motionAnalysis.alerts.length === 0) {
+    if (!remoteConfigured || combinedAnalysis.alerts.length === 0) {
+      if (combinedAnalysis.alerts.length === 0) {
         publishedAlertKeysRef.current.clear();
       }
 
       return;
     }
 
-    for (const alert of motionAnalysis.alerts) {
+    for (const alert of combinedAnalysis.alerts) {
       const alertKey = alert.id;
 
       if (publishedAlertKeysRef.current.has(alertKey)) {
@@ -311,16 +395,16 @@ export function HolyMotionMonitor() {
         setErrorMessage(getFirebaseAuthErrorMessage(error));
       });
     }
-  }, [motionAnalysis.alerts, remoteConfigured]);
+  }, [combinedAnalysis.alerts, remoteConfigured]);
 
   useEffect(() => {
-    if (motionAnalysis.alerts.length === 0) {
+    if (combinedAnalysis.alerts.length === 0) {
       vibratedAlertKeysRef.current.clear();
       stopVibration();
       return;
     }
 
-    for (const alert of motionAnalysis.alerts) {
+    for (const alert of combinedAnalysis.alerts) {
       if (vibratedAlertKeysRef.current.has(alert.id)) {
         continue;
       }
@@ -332,7 +416,7 @@ export function HolyMotionMonitor() {
         severity: alert.severity,
       });
     }
-  }, [motionAnalysis.alerts]);
+  }, [combinedAnalysis.alerts]);
 
   const connectSensor = useCallback(async () => {
     setErrorMessage(null);
@@ -426,7 +510,7 @@ export function HolyMotionMonitor() {
     status === "starting-stream" ||
     status === "notifications-starting";
 
-  const screenClass = getAlertScreenClass(motionAnalysis.severity);
+  const screenClass = getAlertScreenClass(combinedAnalysis.severity);
 
   return (
     <main className={`min-h-screen px-4 py-6 text-[#10201d] transition-colors duration-300 sm:px-6 lg:px-8 ${screenClass}`}>
@@ -448,6 +532,9 @@ export function HolyMotionMonitor() {
             ) : null}
             {cleanupMessage ? (
               <p className="mt-1 text-sm text-[#5f6f6a]">{cleanupMessage}</p>
+            ) : null}
+            {aiMessage ? (
+              <p className="mt-1 text-sm text-[#5f6f6a]">{aiMessage}</p>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -502,7 +589,7 @@ export function HolyMotionMonitor() {
           settingsMessage={settingsMessage}
         />
 
-        <AttentionPanel analysis={motionAnalysis} />
+        <AttentionPanel analysis={combinedAnalysis} />
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <VectorCard
@@ -635,6 +722,116 @@ function appendMotionFrame(
   }
 
   return [...samples, nextSample];
+}
+
+function mergeAiAlert(
+  analysis: MotionAnalysis,
+  aiAlert: MotionAlert | null,
+): MotionAnalysis {
+  if (!aiAlert) {
+    return analysis;
+  }
+
+  const alerts = [
+    ...analysis.alerts.filter((alert) => alert.id !== aiAlert.id),
+    aiAlert,
+  ];
+
+  return {
+    ...analysis,
+    severity: alerts.some((alert) => alert.severity === "critical")
+      ? "critical"
+      : "attention",
+    alerts,
+  };
+}
+
+function buildAiAlertDecisionInput({
+  deviceId,
+  samples,
+  analysis,
+  behaviorProfile,
+  timestamp,
+}: {
+  deviceId: string;
+  samples: MotionSample[];
+  analysis: MotionAnalysis;
+  behaviorProfile?: RemoteBehaviorProfile;
+  timestamp: number;
+}): AiAlertDecisionInput {
+  const recentSamples = samples.slice(-120);
+  const firstSample = recentSamples[0];
+  const lastSample = recentSamples.at(-1);
+
+  return {
+    deviceId,
+    timestamp,
+    localSeverity: analysis.severity,
+    localAlertIds: analysis.alerts.map((alert) => alert.id),
+    metrics: analysis.metrics,
+    behaviorProfile,
+    recentWindow: {
+      sampleCount: recentSamples.length,
+      durationMs:
+        firstSample && lastSample ? lastSample.timestamp - firstSample.timestamp : 0,
+      accelerationMagnitude: getWindowStats(
+        recentSamples.map((sample) =>
+          sample.acceleration ? vectorMagnitude(sample.acceleration) : undefined,
+        ),
+      ),
+      angularVelocityMagnitude: getWindowStats(
+        recentSamples.map((sample) =>
+          sample.gyroscope ? vectorMagnitude(sample.gyroscope) : undefined,
+        ),
+      ),
+      tiltDegrees: getWindowStats(
+        recentSamples.map((sample) =>
+          sample.euler
+            ? Math.max(Math.abs(sample.euler.x), Math.abs(sample.euler.z))
+            : undefined,
+        ),
+      ),
+    },
+  };
+}
+
+async function requestAiAlertDecision(
+  input: AiAlertDecisionInput,
+): Promise<AiAlertDecision> {
+  const response = await fetch("/api/ai/alert-decision", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Falha HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as AiAlertDecision;
+}
+
+function getWindowStats(values: (number | undefined)[]): WindowStats {
+  const definedValues = values.filter((value) => value !== undefined);
+
+  if (definedValues.length === 0) {
+    return {};
+  }
+
+  return {
+    min: Math.min(...definedValues),
+    max: Math.max(...definedValues),
+    mean:
+      definedValues.reduce((total, value) => total + value, 0) /
+      definedValues.length,
+    latest: definedValues.at(-1),
+  };
+}
+
+function vectorMagnitude(vector: Vector3): number {
+  return Math.sqrt(vector.x ** 2 + vector.y ** 2 + vector.z ** 2);
 }
 
 function AttentionPanel({ analysis }: { analysis: MotionAnalysis }) {
