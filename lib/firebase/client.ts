@@ -3,6 +3,7 @@ import {
   getAuth,
   signInAnonymously,
   type Auth,
+  type AuthError,
   type User,
 } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
@@ -87,4 +88,22 @@ export async function ensureFirebaseAuth(): Promise<User | null> {
   const credential = await signInAnonymously(auth);
 
   return credential.user;
+}
+
+export function getFirebaseAuthErrorMessage(error: unknown): string {
+  if (isFirebaseAuthError(error)) {
+    if (error.code === "auth/configuration-not-found") {
+      return "Firebase Auth anonimo nao esta habilitado. No Firebase Console, abra Authentication > Sign-in method e ative o provedor Anonymous.";
+    }
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isFirebaseAuthError(error: unknown): error is AuthError {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  );
 }

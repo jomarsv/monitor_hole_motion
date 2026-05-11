@@ -10,7 +10,11 @@ import {
   setDoc,
   type Unsubscribe,
 } from "firebase/firestore";
-import { ensureFirebaseAuth, getFirebaseDb } from "@/lib/firebase/client";
+import {
+  ensureFirebaseAuth,
+  getFirebaseAuthErrorMessage,
+  getFirebaseDb,
+} from "@/lib/firebase/client";
 import type {
   RemoteAlertEvent,
   RemoteDeviceState,
@@ -197,7 +201,7 @@ function subscribeAfterAuth(
       unsubscribe = subscribe();
     })
     .catch((error: unknown) => {
-      onError(error instanceof Error ? error : new Error(String(error)));
+      onError(new Error(getFirebaseAuthErrorMessage(error)));
     });
 
   return () => {

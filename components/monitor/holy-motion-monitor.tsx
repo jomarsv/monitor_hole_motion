@@ -17,6 +17,7 @@ import {
   publishAlertEvent,
   publishTelemetrySample,
 } from "@/lib/monitoring/telemetryRepository";
+import { getFirebaseAuthErrorMessage } from "@/lib/firebase/client";
 import {
   notifyBrowserAlert,
   stopVibration,
@@ -161,7 +162,7 @@ export function HolyMotionMonitor() {
         setRemoteMessage(`Ultimo envio remoto: ${formatClock(now)}`);
       })
       .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = getFirebaseAuthErrorMessage(error);
         setRemoteMessage(`Falha no envio remoto: ${message}`);
         setErrorMessage(message);
       });
@@ -190,7 +191,7 @@ export function HolyMotionMonitor() {
         deviceId: DEFAULT_DEVICE_ID,
         acknowledged: false,
       }).catch((error: unknown) => {
-        setErrorMessage(error instanceof Error ? error.message : String(error));
+        setErrorMessage(getFirebaseAuthErrorMessage(error));
       });
     }
   }, [motionAnalysis.alerts, remoteConfigured]);
