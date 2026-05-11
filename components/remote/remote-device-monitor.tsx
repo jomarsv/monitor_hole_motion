@@ -144,6 +144,7 @@ export function RemoteDeviceMonitor({ deviceId }: RemoteDeviceMonitorProps) {
               Ativar alertas no celular
             </button>
             <span className="text-sm text-[#5f6f6a]">
+              PWA: {alertSupport?.serviceWorker ? "ativo" : "indisponivel"} ·
               Vibração: {alertSupport?.vibration ? "suportada" : "indisponivel"} ·
               Notificações:{" "}
               {alertSupport?.notifications ? Notification.permission : "indisponiveis"}

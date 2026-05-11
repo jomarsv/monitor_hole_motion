@@ -11,6 +11,7 @@ não foram implementados.
 - TypeScript
 - Tailwind CSS
 - ESLint
+- PWA com manifest e service worker proprio
 
 ## Estrutura
 
@@ -65,6 +66,18 @@ devices/{deviceId}/alerts/{alertId}
 O documento `devices/{deviceId}` tambem guarda `settings`, incluindo a
 calibracao de repouso (`settings.restingEuler`) usada pelo monitor para calcular
 inclinacao relativa por dispositivo.
+
+## Alertas no celular
+
+A rota remota registra `/sw.js` como service worker e usa
+`ServiceWorkerRegistration.showNotification()` quando o navegador permite. No
+celular:
+
+1. Acesse `/remote/holy-motion-001`.
+2. Toque em `Ativar alertas no celular`.
+3. Permita notificacoes no navegador.
+4. Se o navegador oferecer, instale o app na tela inicial para melhorar a
+   confiabilidade dos alertas.
 
 Regras iniciais protegidas por Firebase Auth anonimo:
 
