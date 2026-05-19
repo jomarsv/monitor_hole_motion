@@ -21,7 +21,11 @@ import {
 import { serializeSprCsv, serializeSprJson } from "@/lib/spr/export";
 import { downloadTextFile } from "./download";
 
-const referenceCurve = generateAngularReflectanceCurve(getArchitecture("bare-au").layers);
+const visualSweepOptions = { endDegrees: 90 };
+const referenceCurve = generateAngularReflectanceCurve(
+  getArchitecture("bare-au").layers,
+  visualSweepOptions,
+);
 const referenceResonanceAngle = findResonanceAngle(referenceCurve);
 
 export function SprSimulatorClient() {
@@ -32,7 +36,7 @@ export function SprSimulatorClient() {
   );
 
   const architecture = useMemo(() => getArchitecture(architectureId), [architectureId]);
-  const curve = useMemo(() => generateAngularReflectanceCurve(layers), [layers]);
+  const curve = useMemo(() => generateAngularReflectanceCurve(layers, visualSweepOptions), [layers]);
   const resonanceAngle = useMemo(() => findResonanceAngle(curve), [curve]);
   const angularShift = calculateAngularShiftDegrees(referenceResonanceAngle, resonanceAngle);
   const fixedAngleResponse = calculateFixedAngleResponse(referenceCurve, curve, referenceResonanceAngle);
@@ -129,8 +133,8 @@ export function SprSimulatorClient() {
                 <XAxis
                   dataKey="angleDegrees"
                   type="number"
-                  domain={[40, 78]}
-                  tickCount={8}
+                  domain={[40, 90]}
+                  tickCount={11}
                   label={{ value: "Angulo (graus)", position: "insideBottom", offset: -5 }}
                 />
                 <YAxis

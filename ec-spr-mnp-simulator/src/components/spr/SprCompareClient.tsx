@@ -21,6 +21,7 @@ const comparisonIds = [
 ];
 
 const colors = ["#0f172a", "#0e7490", "#be123c", "#7c3aed"];
+const visualSweepOptions = { endDegrees: 90 };
 
 export function SprCompareClient() {
   const [mounted, setMounted] = useState(false);
@@ -28,7 +29,7 @@ export function SprCompareClient() {
     () =>
       comparisonIds.map((id) => {
         const architecture = getArchitecture(id);
-        const curve = generateAngularReflectanceCurve(architecture.layers);
+        const curve = generateAngularReflectanceCurve(architecture.layers, visualSweepOptions);
         return {
           id,
           name: architecture.name,
@@ -64,8 +65,8 @@ export function SprCompareClient() {
                 <XAxis
                   dataKey="angleDegrees"
                   type="number"
-                  domain={[40, 78]}
-                  tickCount={8}
+                  domain={[40, 90]}
+                  tickCount={11}
                   label={{ value: "Angulo (graus)", position: "insideBottom", offset: -5 }}
                 />
                 <YAxis

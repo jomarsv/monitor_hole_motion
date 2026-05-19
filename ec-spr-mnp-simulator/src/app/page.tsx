@@ -35,12 +35,12 @@ export default function Home() {
             detail="Comparacao de chips e superficies compativeis com ensaios MP-SPR."
           />
           <FeatureLink
-            href="/cinetica"
+            href="/kinetics"
             label="Cinetica"
             detail="Modelos de associacao e dissociacao com concentracao em µg/mL."
           />
           <FeatureLink
-            href="/ia-otimizacao"
+            href="/optimizer"
             label="IA/Otimizacao"
             detail="Area reservada para predicoes computacionais, sem substituir experimentos."
           />
