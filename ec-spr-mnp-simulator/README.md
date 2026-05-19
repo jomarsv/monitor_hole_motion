@@ -38,9 +38,14 @@ npm run build
 ## Limitacoes iniciais
 
 - As curvas SPR iniciais sao sinteticas e simplificadas.
+- Os valores opticos iniciais de `n` e `k` sao aproximacoes para 670 nm e devem ser refinados com dados experimentais e/ou literatura especifica para cada material, lote de chip e condicao de ensaio.
 - Nao ha calibracao experimental para particulas, matrizes reais ou superficies funcionalizadas.
 - O modulo de IA ainda e um esqueleto para ranqueamento e otimizacao.
 - Parametros devem manter unidades explicitas: nm, µm, graus, RIU e µg/mL.
+
+## Nucleo SPR
+
+O primeiro nucleo cientifico implementa um modelo multicamada/Fresnel para luz p-polarizada em configuracao de Kretschmann. As paginas `/simulator` e `/compare` geram curvas de refletancia versus angulo entre 40 e 78 graus, estimam o angulo de ressonancia e calculam deslocamento relativo ao Au nu. Microplasticos e nanoplasticos sao representados como camadas efetivas equivalentes, nao como particulas individuais.
 
 ## Simulacao, IA e dados experimentais
 

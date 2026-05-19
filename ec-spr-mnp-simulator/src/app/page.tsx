@@ -25,12 +25,12 @@ export default function Home() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <FeatureLink
-            href="/simulador-spr"
+            href="/simulator"
             label="Simulador SPR"
             detail="Varredura angular em graus, comprimento de onda em nm e resposta em RIU."
           />
           <FeatureLink
-            href="/comparador-de-chips"
+            href="/compare"
             label="Comparador de chips"
             detail="Comparacao de chips e superficies compativeis com ensaios MP-SPR."
           />
