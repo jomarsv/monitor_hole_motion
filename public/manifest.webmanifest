@@ -1,12 +1,12 @@
 {
-  "name": "Holy Motion Assistive Monitor",
-  "short_name": "Holy Motion",
-  "description": "Monitoramento assistivo remoto com sensor BLE Holy-Motion.",
-  "start_url": "/remote/holy-motion-001",
+  "name": "SGTR Agricultor",
+  "short_name": "SGTR Agricultor",
+  "description": "Boletim público para agricultores do Maranhão.",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f7faf9",
-  "theme_color": "#176b5e",
+  "theme_color": "#2f7a5e",
   "orientation": "portrait",
   "icons": [
     {

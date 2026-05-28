@@ -1,17 +1,17 @@
-# Holy Motion Assistive Monitor
+# SGTR Agricultor
 
-PWA em Next.js para monitoramento assistivo usando o sensor BLE Holy-Motion.
+Aplicacao web para leitura do boletim publico por municipio do Maranhão.
 
-Esta etapa cria apenas a estrutura inicial do projeto. Firebase e BLE real ainda
-não foram implementados.
+Este app nao acessa NOAA/NASA/AWS diretamente. Ele consome apenas o boletim publicado pelo backend do SGTR GOES-R Ambiental.
 
-## Stack
+## O que o app mostra
 
-- Next.js com App Router
-- TypeScript
-- Tailwind CSS
-- ESLint
-- PWA com manifest e service worker proprio
+- municipio selecionado
+- data de geracao
+- validade do boletim
+- texto para agricultor
+- nivel de risco
+- recomendacao pratica
 
 ## Estrutura
 
@@ -19,130 +19,49 @@ não foram implementados.
 app/
 components/
 lib/
-  ble/
-  firebase/
-  monitoring/
 ```
 
-## Comandos
+## Execucao local
 
 ```bash
 npm install
 npm run dev
-npm run lint
 ```
 
-## Variáveis de ambiente
+## Variaveis de ambiente
 
-Copie `.env.example` para `.env.local` quando for configurar integrações reais.
-
-## Monitoramento remoto
-
-O computador conectado ao sensor funciona como gateway:
-
-```text
-Holy-Motion -> Web Bluetooth -> /monitor -> Firestore -> /remote/holy-motion-001
-```
-
-Para ativar:
-
-1. No Firebase, adicione um app Web ao projeto `Monitor Holi Motion`.
-2. Copie o objeto de configuração para `.env.local` usando as variáveis
-   `NEXT_PUBLIC_FIREBASE_*`.
-3. Habilite o Firestore no console Firebase.
-4. Em Authentication > Sign-in method, habilite o provedor Anonymous.
-5. Publique as regras de `firestore.rules` no Firestore.
-6. Rode o app e conecte o sensor em `/monitor`.
-7. Acesse `/remote/holy-motion-001` em outro dispositivo.
-
-Estrutura gravada no Firestore:
-
-```text
-devices/{deviceId}
-devices/{deviceId}/telemetry/{sampleId}
-devices/{deviceId}/alerts/{alertId}
-```
-
-O documento `devices/{deviceId}` tambem guarda `settings`, incluindo a
-calibracao de repouso (`settings.restingEuler`) usada pelo monitor para calcular
-inclinacao relativa por dispositivo.
-
-A rota `/history/{deviceId}` exibe o historico de alertas. A tela `/monitor`
-executa limpeza automatica de telemetria antiga em lotes de ate 50 documentos,
-mantendo por padrao os ultimos 7 dias de amostras em
-`devices/{deviceId}/telemetry`.
-
-O app tambem aprende um perfil estatistico por dispositivo em
-`settings.behaviorProfile`. Esse perfil e atualizado somente quando a analise
-esta normal e guarda medias/picos habituais de aceleracao, giro e inclinacao
-para detectar movimento fora do padrao aprendido.
-
-## Analise com IA
-
-A rota server-side `/api/ai/alert-decision` pode usar a OpenAI Responses API para
-revisar um resumo numerico da janela recente, classificar postura/atividade e
-decidir se o evento deve virar alerta. A chave fica apenas no servidor:
+Copie `.env.example` para `.env.local` e ajuste a origem do backend.
 
 ```bash
-OPENAI_API_KEY="..."
-AI_ALERT_MODEL="gpt-4o-mini"
+GOES_AMBIENTAL_BASE_URL=https://sgtr-goes-ambiental.vercel.app
 ```
 
-Se `OPENAI_API_KEY` nao estiver configurada, o app continua usando somente as
-regras locais e o perfil estatistico. A IA e tratada como camada auxiliar; os
-alertas deterministas continuam sendo a fonte primaria para eventos criticos.
-Quando ativa, a IA tambem informa estados como `em-pe`, `deitado`, `sentado`,
-`andando`, `parado` e `transicao`, alem de atividade como `repouso`,
-`caminhada` e `movimento-brusco`.
+Se a variavel nao for configurada, o app usa a origem padrao do backend publicado.
 
-## Alertas no celular
+## Fluxo de consumo
 
-A rota remota registra `/sw.js` como service worker e usa
-`ServiceWorkerRegistration.showNotification()` quando o navegador permite. No
-celular:
+1. O usuario seleciona um municipio.
+2. O frontend chama `GET /api/agricultor/bulletin`.
+3. O endpoint server-side busca `GET /api/environmental-bulletins/latest`.
+4. O app exibe apenas o boletim publico do agricultor.
 
-1. Acesse `/remote/holy-motion-001`.
-2. Toque em `Ativar alertas no celular`.
-3. Permita notificacoes no navegador.
-4. Se o navegador oferecer, instale o app na tela inicial para melhorar a
-   confiabilidade dos alertas.
+## Contrato publico esperado
 
-Regras iniciais protegidas por Firebase Auth anonimo:
+O backend retorna um objeto com:
 
-```text
-rules_version = '2';
+- `ok`
+- `source`
+- `bulletin.id`
+- `bulletin.municipioId`
+- `bulletin.municipioNome`
+- `bulletin.uf`
+- `bulletin.status`
+- `bulletin.generatedAt`
+- `bulletin.validUntil`
+- `bulletin.producerText`
+- `bulletin.riskLevel`
+- `bulletin.recommendation`
+- `bulletin.generationMode`
 
-service cloud.firestore {
-  match /databases/{database}/documents {
-    function isSignedIn() {
-      return request.auth != null;
-    }
+O app nao exibe `technicalText`.
 
-    match /devices/{deviceId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
-        && request.resource.data.deviceId == deviceId;
-      allow delete: if false;
-
-      match /telemetry/{sampleId} {
-        allow read: if isSignedIn();
-        allow create, update: if isSignedIn()
-          && request.resource.data.deviceId == deviceId;
-        allow delete: if isSignedIn()
-          && resource.data.deviceId == deviceId;
-      }
-
-      match /alerts/{alertId} {
-        allow read: if isSignedIn();
-        allow create, update: if isSignedIn()
-          && request.resource.data.deviceId == deviceId;
-        allow delete: if false;
-      }
-    }
-  }
-}
-```
-
-Isso remove o acesso publico aberto. Para dados sensiveis, o proximo passo deve
-ser restringir leitura/escrita por dispositivo com papeis por UID ou mover a
-publicacao para uma API server-side com token privado.

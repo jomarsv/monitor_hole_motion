@@ -3,14 +3,14 @@ import { PwaServiceWorkerRegistration } from "@/components/pwa-service-worker-re
 import "./globals.css";
 
 export const metadata: Metadata = {
-  applicationName: "Holy Motion",
-  title: "Holy Motion Assistive Monitor",
-  description: "PWA para monitoramento assistivo com sensor BLE Holy-Motion.",
+  applicationName: "SGTR Agricultor",
+  title: "SGTR Agricultor",
+  description: "Boletim público para agricultores do Maranhão, consumindo apenas boletins publicados pelo SGTR GOES-R Ambiental.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Holy Motion",
+    title: "SGTR Agricultor",
   },
   formatDetection: {
     telephone: false,
