@@ -1,67 +1,125 @@
-# SGTR Agricultor
+# CortexMA - Maranhao Estrategico IA
 
-Aplicacao web para leitura do boletim publico por municipio do Maranhão.
+Plataforma de inteligencia artificial estrategica para analise de desafios, oportunidades e cenarios de desenvolvimento do Estado do Maranhao.
 
-Este app nao acessa NOAA/NASA/AWS diretamente. Ele consome apenas o boletim publicado pelo backend do SGTR GOES-R Ambiental.
+O sistema agora opera com:
 
-## O que o app mostra
+- login por usuario e senha
+- hierarquia por perfil
+- biblioteca privada de arquivos para suporte da IA
+- limite diario de analises por usuario
+- persistencia server-side no Firestore e Google Cloud Storage
 
-- municipio selecionado
-- data de geracao
-- validade do boletim
-- texto para agricultor
-- nivel de risco
-- recomendacao pratica
+## Tecnologias
 
-## Estrutura
+- Next.js com App Router
+- TypeScript
+- Tailwind CSS
+- Firebase Authentication
+- Cloud Firestore
+- Firebase Storage
+- Firebase Admin SDK
+- OpenAI API via server-side route
+- Deploy na Vercel
 
-```text
-app/
-components/
-lib/
+## Rotas principais
+
+- `/` - pagina inicial
+- `/entrar` - login e bootstrap do primeiro administrador
+- `/nova-analise` - nova analise estrategica
+- `/analises` - historico autenticado
+- `/biblioteca` - biblioteca privada
+- `/usuarios` - gestao de usuarios
+
+## Hierarquia
+
+Os perfis seguem esta ordem de acesso:
+
+- `admin`
+- `manager`
+- `analyst`
+- `viewer`
+
+O nivel numerico (`accessLevel`) controla:
+
+- quais arquivos da biblioteca o usuario pode consultar
+- quais arquivos ele pode cadastrar
+- quanto a IA pode usar do conhecimento privado no contexto da resposta
+- o limite diario de analises por conta
+
+## Variaveis de ambiente
+
+Copie `.env.example` para `.env.local` e preencha:
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.2
+FIREBASE_ADMIN_PROJECT_ID=
+FIREBASE_ADMIN_CLIENT_EMAIL=
+FIREBASE_ADMIN_PRIVATE_KEY=
+CORTEXMA_BOOTSTRAP_SECRET=
 ```
 
-## Execucao local
+Observacoes:
+
+- `OPENAI_API_KEY` nunca deve ir para o frontend.
+- `FIREBASE_ADMIN_PRIVATE_KEY` deve preservar as quebras de linha. Na Vercel, armazene com `\n`.
+- `CORTEXMA_BOOTSTRAP_SECRET` e a chave usada para criar o primeiro administrador.
+
+## Fluxo de acesso
+
+1. O usuario faz login em `/entrar`.
+2. As rotas server-side validam o ID token do Firebase.
+3. O perfil salvo em `/users/{uid}` define role, nivel e limite diario.
+4. A analise consome a cota diaria antes de chamar a OpenAI.
+5. A biblioteca privada e consultada no servidor com base no nivel de acesso do usuario.
+6. Os arquivos sobem para Google Cloud Storage e a metadados ficam no Firestore.
+
+## Firestore
+
+O projeto usa Firestore apenas via servidor e Firebase Admin.
+
+As regras atuais bloqueiam acesso direto do navegador. Isso e intencional:
+
+- analises sao gravadas por rota server-side
+- usuarios sao gerenciados por rota server-side
+- biblioteca e servida por rota server-side com URLs assinadas
+
+## Firebase
+
+1. Crie ou use o projeto Firebase `cortexma`.
+2. Ative Authentication, Firestore e Storage.
+3. Configure as credenciais admin no ambiente local e na Vercel.
+4. Publique `firestore.rules`.
+5. Crie o primeiro administrador em `/entrar` usando a chave de bootstrap.
+
+## Rodar localmente
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Variaveis de ambiente
-
-Copie `.env.example` para `.env.local` e ajuste a origem do backend.
+## Verificacao
 
 ```bash
-GOES_AMBIENTAL_BASE_URL=https://sgtr-goes-ambiental.vercel.app
+npm run lint
+npm run typecheck
+npm run build
 ```
 
-Se a variavel nao for configurada, o app usa a origem padrao do backend publicado.
+## Deploy na Vercel
 
-## Fluxo de consumo
+1. Publique o projeto no GitHub.
+2. Importe o repositório na Vercel.
+3. Configure o diretório raiz como `cortexma`.
+4. Adicione as variaveis de ambiente.
+5. Execute o deploy.
 
-1. O usuario seleciona um municipio.
-2. O frontend chama `GET /api/agricultor/bulletin`.
-3. O endpoint server-side busca `GET /api/environmental-bulletins/latest`.
-4. O app exibe apenas o boletim publico do agricultor.
-
-## Contrato publico esperado
-
-O backend retorna um objeto com:
-
-- `ok`
-- `source`
-- `bulletin.id`
-- `bulletin.municipioId`
-- `bulletin.municipioNome`
-- `bulletin.uf`
-- `bulletin.status`
-- `bulletin.generatedAt`
-- `bulletin.validUntil`
-- `bulletin.producerText`
-- `bulletin.riskLevel`
-- `bulletin.recommendation`
-- `bulletin.generationMode`
-
-O app nao exibe `technicalText`.
-
+O usuario final deve acessar o CortexMA pelo link gerado pela Vercel.

@@ -29,10 +29,23 @@
     "components/**/*.ts",
     "components/**/*.tsx",
     "lib/**/*.ts",
-    "tests/**/*.ts",
-    "next.config.ts",
-    "tailwind.config.ts",
+    "lib/**/*.tsx",
+    "middleware.ts",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "cortexma",
+    "ec-spr-mnp-simulator",
+    "nefroassist-ai",
+    "uro-clinico-ai",
+    "sgtr-goes-ambiental",
+    "holyiot_belongings",
+    "lattes-inep-app",
+    "odonto-modular-ai",
+    "residuos-massa-estimada",
+    "escola-musica-cobrancas-mvp",
+    "chamador_android_wrapper",
+    "chamador_garcom_publish"
+  ]
 }

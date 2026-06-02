@@ -1,32 +1,25 @@
 import type { Metadata } from "next";
-import { PwaServiceWorkerRegistration } from "@/components/pwa-service-worker-registration";
+import { AuthProvider } from "@/components/auth/AuthProvider";
+import { Shell } from "@/components/layout/Shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  applicationName: "SGTR Agricultor",
-  title: "SGTR Agricultor",
-  description: "Boletim público para agricultores do Maranhão, consumindo apenas boletins publicados pelo SGTR GOES-R Ambiental.",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "SGTR Agricultor",
-  },
-  formatDetection: {
-    telephone: false,
-  },
+  title: "Maranhao Estrategico IA | CortexMA",
+  description:
+    "Plataforma de inteligencia artificial para analise estrategica do desenvolvimento do Estado do Maranhao."
 };
 
 export default function RootLayout({
-  children,
+  children
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
     <html lang="pt-BR">
-      <body suppressHydrationWarning>
-        <PwaServiceWorkerRegistration />
-        {children}
+      <body>
+        <AuthProvider>
+          <Shell>{children}</Shell>
+        </AuthProvider>
       </body>
     </html>
   );
