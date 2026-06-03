@@ -10,7 +10,7 @@ import {
 import {
   createUserWithEmailAndPassword,
   deleteUser,
-  onAuthStateChanged,
+  onIdTokenChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -35,6 +35,8 @@ type AuthContextValue = {
   requestPasswordReset: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
+
+type AuditEventType = "sign_in" | "sign_out";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -73,6 +75,24 @@ async function clearSessionCookie() {
   });
 }
 
+async function recordClientAuditEvent(
+  token: string,
+  eventType: AuditEventType,
+  context?: Record<string, unknown>
+) {
+  await fetch("/api/audit", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      eventType,
+      context
+    })
+  });
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUserId, setFirebaseUserId] = useState<string | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
@@ -81,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const auth = getClientAuth();
-    return onAuthStateChanged(auth, async (user) => {
+    return onIdTokenChanged(auth, async (user) => {
       try {
         setFirebaseUserId(user?.uid ?? null);
 
@@ -123,7 +143,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string) {
     const auth = getClientAuth();
-    await signInWithEmailAndPassword(auth, email, password);
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    const token = await credential.user.getIdToken();
+    setFirebaseUserId(credential.user.uid);
+    setIdToken(token);
+    await syncSessionCookie(token);
+    setProfile(await fetchMyProfile(token));
+    await recordClientAuditEvent(token, "sign_in", {
+      source: "client",
+      route: "/entrar"
+    }).catch(() => null);
   }
 
   async function signOut() {
@@ -156,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         displayName: input.displayName,
         bootstrapKey: input.bootstrapKey
       })
-    });
+      });
     const data = (await response.json().catch(() => ({}))) as { error?: string };
 
     if (!response.ok) {

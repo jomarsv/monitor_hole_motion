@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyIdToken, extractBearerToken } from "@/lib/server/auth";
+import { extractAuditRequestContext, recordAuditEvent } from "@/lib/server/audit";
 import { bootstrapFirstAdmin } from "@/lib/server/userAdmin";
 
 export const runtime = "nodejs";
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
 
     const bootstrapKey = process.env.CORTEXMA_BOOTSTRAP_SECRET;
     if (!bootstrapKey) {
-      throw new Error("CORTEXMA_BOOTSTRAP_SECRET nao configurado.");
+      throw new Error("CORTEXMA_BOOTSTRAP_SECRET não configurado.");
     }
 
     if (body?.bootstrapKey !== bootstrapKey) {
@@ -20,12 +21,29 @@ export async function POST(request: Request) {
     }
 
     const decoded = await verifyIdToken(await extractBearerToken(request.headers));
+    const requestContext = extractAuditRequestContext(request.headers);
 
     const profile = await bootstrapFirstAdmin({
       uid: decoded.uid,
       email: decoded.email ?? decoded.uid,
       displayName: body?.displayName?.trim() || decoded.name || decoded.email || decoded.uid
     });
+
+    await recordAuditEvent({
+      eventType: "bootstrap_admin",
+      actor: {
+        uid: profile.uid,
+        email: profile.email,
+        displayName: profile.displayName,
+        role: profile.role,
+        accessLevel: profile.accessLevel
+      },
+      context: {
+        source: "server",
+        route: "/api/auth/bootstrap",
+        ...requestContext
+      }
+    }).catch(() => null);
 
     return NextResponse.json({ profile });
   } catch (error) {

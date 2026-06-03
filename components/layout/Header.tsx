@@ -4,14 +4,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { isRoleAtLeast } from "@/lib/types/hierarchy";
 
 const links = [
   { href: "/", label: "Inicio" },
-  { href: "/nova-analise", label: "Nova analise" },
-  { href: "/analises", label: "Historico" },
+  { href: "/nova-analise", label: "Nova análise" },
+  { href: "/analises", label: "Histórico" },
   { href: "/agentes", label: "Agentes" },
   { href: "/biblioteca", label: "Biblioteca" },
-  { href: "/usuarios", label: "Usuarios" }
+  { href: "/auditoria", label: "Auditoria" },
+  { href: "/usuarios", label: "Usuários" }
 ];
 
 export function Header() {
@@ -35,7 +37,7 @@ export function Header() {
               CortexMA
             </p>
             <p className="truncate text-lg font-bold text-cortex-ink">
-              Maranhao Estrategico IA
+              Maranhão Estratégico IA
             </p>
           </div>
         </Link>
@@ -46,7 +48,15 @@ export function Header() {
               return null;
             }
 
+            if (link.href === "/auditoria" && !profile) {
+              return null;
+            }
+
             if (link.href === "/usuarios" && profile?.role === "viewer") {
+              return null;
+            }
+
+            if (link.href === "/auditoria" && (!profile || !isRoleAtLeast(profile.role, "manager"))) {
               return null;
             }
 

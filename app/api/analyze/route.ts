@@ -3,6 +3,7 @@ import { classifyQuestion } from "@/lib/agents/classifyQuestion";
 import { getAgentById } from "@/lib/agents/agents";
 import { generateStrategicAnalysis } from "@/lib/openai/client";
 import { buildAnalysisPrompt } from "@/lib/prompts/buildAnalysisPrompt";
+import { extractAuditRequestContext, recordAuditEvent } from "@/lib/server/audit";
 import { saveServerAnalysis } from "@/lib/server/analysis";
 import { requireVerifiedUser, extractBearerToken, getTokenAccessLevel, getTokenRole } from "@/lib/server/auth";
 import { consumeDailyAnalysisQuota } from "@/lib/server/quota";
@@ -22,11 +23,67 @@ export async function POST(request: Request) {
   }
 
   const token = await extractBearerToken(request.headers);
+  const requestContext = extractAuditRequestContext(request.headers);
 
   try {
     const user = await requireVerifiedUser(token);
     const classification = classifyQuestion(validation.value);
     const selectedAgent = getAgentById(body?.agentId) ?? classification.recommendedAgent;
+
+    if (!classification.isCoherent) {
+      await recordAuditEvent({
+        eventType: "question_blocked",
+        actor: {
+          uid: user.uid,
+          email: user.profile.email,
+          displayName: user.profile.displayName,
+          role: user.profile.role,
+          accessLevel: user.profile.accessLevel
+        },
+        context: {
+          source: "server",
+          route: "/api/analyze",
+          ...requestContext,
+          question: validation.value,
+          requestedAgentId: body?.agentId ?? null,
+          selectedAgentId: selectedAgent.id,
+          selectedAgentName: selectedAgent.name,
+          classificationTheme: classification.theme,
+          matchedKeywords: classification.matchedKeywords,
+          blockedReason: classification.blockedReason ?? classification.reason
+        }
+      }).catch(() => null);
+
+      return NextResponse.json(
+        {
+          error: classification.blockedReason ?? classification.reason,
+          classification
+        },
+        { status: 422 }
+      );
+    }
+
+    await recordAuditEvent({
+      eventType: "question_submitted",
+      actor: {
+        uid: user.uid,
+        email: user.profile.email,
+        displayName: user.profile.displayName,
+        role: user.profile.role,
+        accessLevel: user.profile.accessLevel
+      },
+      context: {
+        source: "server",
+        route: "/api/analyze",
+        ...requestContext,
+        question: validation.value,
+        requestedAgentId: body?.agentId ?? null,
+        selectedAgentId: selectedAgent.id,
+        selectedAgentName: selectedAgent.name,
+        classificationTheme: classification.theme,
+        matchedKeywords: classification.matchedKeywords
+      }
+    }).catch(() => null);
 
     const quota = await consumeDailyAnalysisQuota(user.profile);
     const libraryContext = await listAccessibleLibraryItems({
@@ -84,6 +141,31 @@ export async function POST(request: Request) {
 
     await saveServerAnalysis(analysis);
 
+    await recordAuditEvent({
+      eventType: "analysis_generated",
+      actor: {
+        uid: user.uid,
+        email: user.profile.email,
+        displayName: user.profile.displayName,
+        role: user.profile.role,
+        accessLevel: user.profile.accessLevel
+      },
+      context: {
+        source: "server",
+        route: "/api/analyze",
+        ...requestContext,
+        question: validation.value,
+        requestedAgentId: body?.agentId ?? null,
+        selectedAgentId: selectedAgent.id,
+        selectedAgentName: selectedAgent.name,
+        classificationTheme: classification.theme,
+        matchedKeywords: classification.matchedKeywords,
+        analysisId,
+        quotaRemaining: quota.remaining,
+        libraryItemCount: libraryContext.length
+      }
+    }).catch(() => null);
+
     const response: AnalyzeResponse = {
       analysis,
       classification,
@@ -103,7 +185,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Nao foi possivel gerar a analise estrategica.";
+      error instanceof Error ? error.message : "Não foi possível gerar a análise estratégica.";
     const status =
       message.includes("Nao autenticado") || message.includes("Perfil de usuario") || message.includes("Conta desativada")
         ? 401
