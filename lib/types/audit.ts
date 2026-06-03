@@ -3,10 +3,14 @@ import type { UserRole } from "./hierarchy";
 export type AuditEventType =
   | "sign_in"
   | "sign_out"
+  | "password_change"
   | "bootstrap_admin"
   | "question_submitted"
   | "question_blocked"
-  | "analysis_generated";
+  | "analysis_generated"
+  | "user_updated"
+  | "user_deleted"
+  | "history_deleted";
 
 export type AuditEventActor = {
   uid: string;
@@ -49,4 +53,3 @@ export type AuditEventInput = {
   context?: AuditEventContext;
   createdAt?: string;
 };
-

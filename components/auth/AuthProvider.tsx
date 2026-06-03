@@ -8,16 +8,20 @@ import {
   type ReactNode
 } from "react";
 import {
+  EmailAuthProvider,
   createUserWithEmailAndPassword,
   deleteUser,
+  reauthenticateWithCredential,
   onIdTokenChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  updatePassword,
   updateProfile
 } from "firebase/auth";
 import { getClientAuth } from "@/lib/firebase/client";
 import type { CurrentUserSession } from "@/lib/types/auth";
+import type { AuditEventType } from "@/lib/types/audit";
 
 type AuthContextValue = {
   firebaseUserId: string | null;
@@ -33,10 +37,9 @@ type AuthContextValue = {
     bootstrapKey: string;
   }) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
+  changePassword: (currentPassword: string, nextPassword: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
-
-type AuditEventType = "sign_in" | "sign_out";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -157,8 +160,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     const auth = getClientAuth();
+    if (idToken) {
+      await recordClientAuditEvent(idToken, "sign_out", {
+        source: "client",
+        route: "/"
+      }).catch(() => null);
+    }
     await clearSessionCookie().catch(() => null);
     await firebaseSignOut(auth);
+  }
+
+  async function changePassword(currentPassword: string, nextPassword: string) {
+    const auth = getClientAuth();
+    const user = auth.currentUser;
+
+    if (!user || !user.email) {
+      throw new Error("Entre novamente para trocar a senha.");
+    }
+
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+    await updatePassword(user, nextPassword);
+
+    const token = await user.getIdToken(true);
+    setIdToken(token);
+    await syncSessionCookie(token);
+    await recordClientAuditEvent(token, "password_change", {
+      source: "client",
+      route: "/configuracoes"
+    }).catch(() => null);
   }
 
   async function createInitialAdmin(input: {
@@ -214,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         createInitialAdmin,
         requestPasswordReset,
+        changePassword,
         refreshProfile
       }}
     >

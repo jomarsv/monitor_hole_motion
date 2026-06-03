@@ -59,7 +59,7 @@ export async function bootstrapFirstAdmin(input: {
   const existing = await db.collection("users").limit(1).get();
 
   if (!existing.empty) {
-    throw new Error("Bootstrap inicial indisponivel depois que o primeiro usuario foi criado.");
+    throw new Error("Bootstrap inicial indisponível depois que o primeiro usuário foi criado.");
   }
 
   const roleConfig = getRoleConfig("admin");
@@ -117,7 +117,7 @@ export async function updateManagedUser(
   const existing = await db.collection("users").doc(uid).get();
 
   if (!existing.exists) {
-    throw new Error("Usuario nao encontrado.");
+    throw new Error("Usuário não encontrado.");
   }
 
   const current = existing.data() as UserProfile;
@@ -148,4 +148,18 @@ export async function updateManagedUser(
   );
 
   return nextProfile;
+}
+
+export async function updateManagedUserDailyLimit(uid: string, dailyAnalysisLimit: number): Promise<UserProfile> {
+  return updateManagedUser(uid, { dailyAnalysisLimit });
+}
+
+export async function deleteManagedUser(uid: string): Promise<void> {
+  const auth = getAdminAuthClient();
+  const db = getAdminFirestore();
+
+  await Promise.allSettled([
+    db.collection("users").doc(uid).delete(),
+    auth.deleteUser(uid)
+  ]);
 }

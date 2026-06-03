@@ -82,3 +82,31 @@ export async function getAnalysisForUser(
       typeof data.updatedAt === "string" ? data.updatedAt : new Date().toISOString()
   };
 }
+
+export async function deleteAnalysisById(id: string): Promise<void> {
+  const db = getAdminFirestore();
+  await db.collection(COLLECTION_NAME).doc(id).delete();
+}
+
+export async function deleteAnalysesForUser(uid: string): Promise<number> {
+  const db = getAdminFirestore();
+  let deletedCount = 0;
+
+  while (true) {
+    const snapshot = await db.collection(COLLECTION_NAME).where("userId", "==", uid).limit(300).get();
+
+    if (snapshot.empty) {
+      break;
+    }
+
+    const batch = db.batch();
+    for (const doc of snapshot.docs) {
+      batch.delete(doc.ref);
+      deletedCount += 1;
+    }
+
+    await batch.commit();
+  }
+
+  return deletedCount;
+}

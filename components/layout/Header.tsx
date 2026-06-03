@@ -13,7 +13,8 @@ const links = [
   { href: "/agentes", label: "Agentes" },
   { href: "/biblioteca", label: "Biblioteca" },
   { href: "/auditoria", label: "Auditoria" },
-  { href: "/usuarios", label: "Usuários" }
+  { href: "/usuarios", label: "Usuários" },
+  { href: "/configuracoes", label: "Conta" }
 ];
 
 export function Header() {
@@ -44,7 +45,7 @@ export function Header() {
 
         <nav className="flex flex-wrap items-center gap-2">
           {links.map((link) => {
-            if ((link.href === "/usuarios" || link.href === "/biblioteca") && !profile) {
+            if ((link.href === "/usuarios" || link.href === "/biblioteca" || link.href === "/configuracoes") && !profile) {
               return null;
             }
 
@@ -57,6 +58,10 @@ export function Header() {
             }
 
             if (link.href === "/auditoria" && (!profile || !isRoleAtLeast(profile.role, "manager"))) {
+              return null;
+            }
+
+            if (link.href === "/configuracoes" && !profile) {
               return null;
             }
 

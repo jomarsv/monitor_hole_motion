@@ -8,7 +8,7 @@ import type { UserRole } from "@/lib/types/hierarchy";
 
 const COLLECTION_NAME = "auditEvents";
 const AUDIT_ACCESS_ROLES: UserRole[] = ["admin", "manager"];
-const CLIENT_EVENT_TYPES: AuditEventType[] = ["sign_in", "sign_out"];
+const CLIENT_EVENT_TYPES: AuditEventType[] = ["sign_in", "sign_out", "password_change"];
 
 function toIsoDate(value: unknown): string {
   if (value && typeof value === "object" && "toDate" in value) {

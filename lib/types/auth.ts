@@ -28,7 +28,9 @@ export type CurrentUserSession = Pick<
   | "dailyUsageCount"
   | "active"
   | "department"
->;
+> & {
+  canAccessAudit?: boolean;
+};
 
 export type AuthBootstrapRequest = {
   displayName: string;
