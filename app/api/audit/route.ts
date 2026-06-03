@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireVerifiedUser, extractBearerToken, getTokenRole } from "@/lib/server/auth";
+import { requireVerifiedUser, extractBearerToken } from "@/lib/server/auth";
 import {
   canAccessAudit,
   extractAuditRequestContext,
@@ -21,7 +21,7 @@ function normalizeLimit(value: string | null): number {
 
 async function requireAuditAccess(request: Request) {
   const user = await requireVerifiedUser(await extractBearerToken(request.headers));
-  const role = getTokenRole(user.tokenClaims) || user.profile.role;
+  const role = user.profile.role;
 
   if (!canAccessAudit(role)) {
     throw new Error("Acesso negado.");

@@ -5,7 +5,7 @@ import { generateStrategicAnalysis } from "@/lib/openai/client";
 import { buildAnalysisPrompt } from "@/lib/prompts/buildAnalysisPrompt";
 import { extractAuditRequestContext, recordAuditEvent } from "@/lib/server/audit";
 import { saveServerAnalysis } from "@/lib/server/analysis";
-import { requireVerifiedUser, extractBearerToken, getTokenAccessLevel, getTokenRole } from "@/lib/server/auth";
+import { requireVerifiedUser, extractBearerToken } from "@/lib/server/auth";
 import { consumeDailyAnalysisQuota } from "@/lib/server/quota";
 import { listAccessibleLibraryItems } from "@/lib/server/library";
 import type { Analysis, AnalyzeRequest, AnalyzeResponse } from "@/lib/types/analysis";
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     const quota = await consumeDailyAnalysisQuota(user.profile);
     const libraryContext = await listAccessibleLibraryItems({
       question: validation.value,
-      accessLevel: getTokenAccessLevel(user.tokenClaims) || user.profile.accessLevel,
+      accessLevel: user.profile.accessLevel,
       maxItems: 8
     });
 
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
       user: {
         displayName: user.profile.displayName,
         email: user.profile.email,
-        role: getTokenRole(user.tokenClaims),
+        role: user.profile.role,
         accessLevel: user.profile.accessLevel
       },
       libraryContext

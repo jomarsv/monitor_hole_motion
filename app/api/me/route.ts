@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireVerifiedUser, extractBearerToken, getTokenAccessLevel, getTokenRole } from "@/lib/server/auth";
+import { requireVerifiedUser, extractBearerToken } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -11,8 +11,8 @@ export async function GET(request: Request) {
       uid: user.uid,
       email: user.profile.email,
       displayName: user.profile.displayName,
-      role: getTokenRole(user.tokenClaims) || user.profile.role,
-      accessLevel: getTokenAccessLevel(user.tokenClaims) || user.profile.accessLevel,
+      role: user.profile.role,
+      accessLevel: user.profile.accessLevel,
       dailyAnalysisLimit: user.profile.dailyAnalysisLimit,
       dailyUsageDate: user.profile.dailyUsageDate,
       dailyUsageCount: user.profile.dailyUsageCount ?? 0,

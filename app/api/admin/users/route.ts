@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireVerifiedUser, extractBearerToken, getTokenRole } from "@/lib/server/auth";
+import { requireVerifiedUser, extractBearerToken } from "@/lib/server/auth";
 import { createManagedUser, listManagedUsers } from "@/lib/server/userAdmin";
 import type { CreateUserRequest } from "@/lib/types/auth";
 
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 async function requireAdmin(request: Request) {
   const user = await requireVerifiedUser(await extractBearerToken(request.headers));
-  const role = getTokenRole(user.tokenClaims) || user.profile.role;
+  const role = user.profile.role;
 
   if (role !== "admin" && role !== "manager") {
     throw new Error("Acesso negado.");
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ user: profile });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel criar usuario.";
+    const message = error instanceof Error ? error.message : "Não foi possível criar usuário.";
     const status = message.includes("Acesso negado") ? 403 : 400;
     return NextResponse.json({ error: message }, { status });
   }

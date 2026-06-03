@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { requireVerifiedUser, extractBearerToken, getTokenAccessLevel, getTokenRole } from "@/lib/server/auth";
+import { requireVerifiedUser, extractBearerToken } from "@/lib/server/auth";
 import { createLibraryItem, getSignedLibraryUrl, listAccessibleLibraryItems } from "@/lib/server/library";
 
 export const runtime = "nodejs";
 
 async function requireLibraryAccess(request: Request) {
   const user = await requireVerifiedUser(await extractBearerToken(request.headers));
-  const role = getTokenRole(user.tokenClaims) || user.profile.role;
+  const role = user.profile.role;
 
   return {
     user,
     role,
-    accessLevel: getTokenAccessLevel(user.tokenClaims) || user.profile.accessLevel,
+    accessLevel: user.profile.accessLevel,
     canWrite: role === "admin" || role === "manager" || role === "analyst"
   };
 }
@@ -74,14 +74,14 @@ export async function POST(request: Request) {
     }
 
     if (!Number.isFinite(accessLevel) || accessLevel <= 0) {
-      return NextResponse.json({ error: "Nivel de acesso invalido." }, { status: 400 });
+      return NextResponse.json({ error: "Nível de acesso inválido." }, { status: 400 });
     }
 
     if (accessLevel > access.accessLevel) {
       return NextResponse.json(
         {
           error:
-            "O nivel da biblioteca nao pode ser maior que o nivel de acesso do usuario."
+            "O nível da biblioteca não pode ser maior que o nível de acesso do usuário."
         },
         { status: 403 }
       );
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     const downloadUrl = await getSignedLibraryUrl(item);
     return NextResponse.json({ item: { ...item, downloadUrl } });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel enviar o arquivo.";
+    const message = error instanceof Error ? error.message : "Não foi possível enviar o arquivo.";
     const status =
       message.includes("Acesso negado")
         ? 403
