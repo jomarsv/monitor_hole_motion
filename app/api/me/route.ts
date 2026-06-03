@@ -13,6 +13,7 @@ export async function GET(request: Request) {
       displayName: user.profile.displayName,
       role: user.profile.role,
       accessLevel: user.profile.accessLevel,
+      canAccessAudit: user.profile.role === "admin" || user.profile.role === "manager",
       dailyAnalysisLimit: user.profile.dailyAnalysisLimit,
       dailyUsageDate: user.profile.dailyUsageDate,
       dailyUsageCount: user.profile.dailyUsageCount ?? 0,

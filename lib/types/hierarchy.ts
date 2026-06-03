@@ -50,6 +50,25 @@ export function getRoleConfig(role: UserRole): RoleConfig {
   return roleCatalog[role];
 }
 
+export function normalizeUserRole(role: unknown): UserRole {
+  if (role === "admin" || role === "manager" || role === "analyst" || role === "viewer") {
+    return role;
+  }
+
+  const normalized = String(role ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (normalized === "administrador") return "admin";
+  if (normalized === "gestor") return "manager";
+  if (normalized === "analista") return "analyst";
+  if (normalized === "consulta" || normalized === "viewer") return "viewer";
+
+  return "viewer";
+}
+
 export function isRoleAtLeast(userRole: UserRole, minimumRole: UserRole): boolean {
   return roleCatalog[userRole].accessLevel >= roleCatalog[minimumRole].accessLevel;
 }

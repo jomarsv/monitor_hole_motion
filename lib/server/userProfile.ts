@@ -3,7 +3,7 @@ import "server-only";
 import { type DocumentData, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import type { UserProfile } from "@/lib/types/auth";
-import { getRoleConfig } from "@/lib/types/hierarchy";
+import { getRoleConfig, normalizeUserRole } from "@/lib/types/hierarchy";
 
 const COLLECTION_NAME = "users";
 
@@ -27,7 +27,7 @@ function mapUserSnapshot(snapshot: QueryDocumentSnapshot<DocumentData>): UserPro
     uid: snapshot.id,
     email: String(data.email ?? ""),
     displayName: String(data.displayName ?? data.email ?? ""),
-    role: data.role ?? "viewer",
+    role: normalizeUserRole(data.role),
     accessLevel: Number(data.accessLevel ?? getRoleConfig("viewer").accessLevel),
     dailyAnalysisLimit: Number(
       data.dailyAnalysisLimit ?? getRoleConfig("viewer").dailyAnalysisLimit
