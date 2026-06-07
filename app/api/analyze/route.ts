@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { classifyQuestion } from "@/lib/agents/classifyQuestion";
-import { getAgentById } from "@/lib/agents/agents";
 import { generateStrategicAnalysis } from "@/lib/openai/client";
 import { buildAnalysisPrompt } from "@/lib/prompts/buildAnalysisPrompt";
 import { extractAuditRequestContext, recordAuditEvent } from "@/lib/server/audit";
+import { listActiveAgents } from "@/lib/server/agentCatalog";
 import { saveServerAnalysis } from "@/lib/server/analysis";
 import { requireVerifiedUser, extractBearerToken } from "@/lib/server/auth";
 import { consumeDailyAnalysisQuota } from "@/lib/server/quota";
@@ -27,8 +27,9 @@ export async function POST(request: Request) {
 
   try {
     const user = await requireVerifiedUser(token);
-    const classification = classifyQuestion(validation.value);
-    const selectedAgent = getAgentById(body?.agentId) ?? classification.recommendedAgent;
+    const activeAgents = await listActiveAgents();
+    const classification = classifyQuestion(validation.value, activeAgents);
+    const selectedAgent = activeAgents.find((agent) => agent.id === body?.agentId) ?? classification.recommendedAgent;
 
     if (!classification.isCoherent) {
       await recordAuditEvent({

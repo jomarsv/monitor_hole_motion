@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { classifyQuestion } from "@/lib/agents/classifyQuestion";
+import { listActiveAgents } from "@/lib/server/agentCatalog";
+import { requireVerifiedUser, extractBearerToken } from "@/lib/server/auth";
 import { validateQuestion } from "@/lib/utils/validation";
 
 export const runtime = "nodejs";
@@ -12,6 +14,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: validation.message }, { status: 400 });
   }
 
-  const classification = classifyQuestion(validation.value);
-  return NextResponse.json(classification);
+  try {
+    await requireVerifiedUser(await extractBearerToken(request.headers));
+    const agents = await listActiveAgents();
+    const classification = classifyQuestion(validation.value, agents);
+    return NextResponse.json(classification);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Nao autenticado.";
+    return NextResponse.json({ error: message }, { status: 401 });
+  }
 }

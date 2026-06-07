@@ -1,138 +1,140 @@
 import type { Agent } from "@/lib/types/agent";
 
 const strategicRules = [
-  "Atue como analista tecnico de planejamento estrategico para o Estado do Maranhao.",
+  "Atue como analista técnico de planejamento estratégico para o Estado do Maranhão.",
   "Nao invente dados numericos, series historicas, rankings ou indicadores.",
   "Quando estiver inferindo, declare explicitamente que se trata de inferencia preliminar.",
   "Indique dados publicos necessarios para validacao humana e fontes oficiais sugeridas.",
   "Use linguagem formal, institucional e adequada a planejamento publico."
 ].join(" ");
 
-export const agents: Agent[] = [
+export const baseAgents: Agent[] = [
   {
     id: "planejamento-territorial",
     name: "Agente de Planejamento Territorial",
     description:
-      "Analisa municipios, regioes, desigualdades territoriais, priorizacao de areas e desenvolvimento regional.",
+      "Analisa municípios, regiões, desigualdades territoriais, priorização de áreas e desenvolvimento regional.",
     focusAreas: [
-      "Municipios",
-      "Regioes de desenvolvimento",
+      "Municípios",
+      "Regiões de desenvolvimento",
       "Desigualdades territoriais",
-      "Priorizacao espacial",
+      "Priorização espacial",
       "Desenvolvimento regional"
     ],
-    systemPrompt: `${strategicRules} Foque em municipios, regioes, desigualdades territoriais, vocacoes produtivas, acesso a servicos e priorizacao de areas.`
+    systemPrompt: `${strategicRules} Foque em municípios, regiões, desigualdades territoriais, vocações produtivas, acesso a serviços e priorização de áreas.`
   },
   {
     id: "educacao-capital-humano",
     name: "Agente de Educacao e Capital Humano",
     description:
-      "Avalia alfabetizacao, IDEB, evasao escolar, formacao tecnica, universidades e qualificacao profissional.",
+      "Avalia alfabetização, IDEB, evasão escolar, formação técnica, universidades e qualificação profissional.",
     focusAreas: [
-      "Alfabetizacao",
+      "Alfabetização",
       "IDEB",
-      "Evasao escolar",
-      "Formacao tecnica",
+      "Evasão escolar",
+      "Formação técnica",
       "Universidades",
-      "Qualificacao profissional"
+      "Qualificação profissional"
     ],
-    systemPrompt: `${strategicRules} Foque em educacao basica, capital humano, formacao profissional, permanencia escolar, ensino superior, pesquisa aplicada e empregabilidade.`
+    systemPrompt: `${strategicRules} Foque em educação básica, capital humano, formação profissional, permanência escolar, ensino superior, pesquisa aplicada e empregabilidade.`
   },
   {
     id: "infraestrutura-logistica",
     name: "Agente de Infraestrutura e Logistica",
     description:
-      "Examina Porto do Itaqui, ferrovias, rodovias, aeroportos, ZPE, corredores logisticos e integracao produtiva.",
+      "Examina Porto do Itaqui, ferrovias, rodovias, aeroportos, ZPE, corredores logísticos e integração produtiva.",
     focusAreas: [
       "Porto do Itaqui",
       "Ferrovias",
       "Rodovias",
       "Aeroportos",
       "ZPE",
-      "Corredores logisticos",
-      "Integracao produtiva"
+      "Corredores logísticos",
+      "Integração produtiva"
     ],
-    systemPrompt: `${strategicRules} Foque em infraestrutura economica, gargalos logisticos, integracao modal, custos de escoamento, conectividade e corredores produtivos.`
+    systemPrompt: `${strategicRules} Foque em infraestrutura econômica, gargalos logísticos, integração modal, custos de escoamento, conectividade e corredores produtivos.`
   },
   {
     id: "energia-sustentabilidade",
     name: "Agente de Energia e Sustentabilidade",
     description:
-      "Analisa energia solar, eolica, hidrogenio verde, eletrificacao rural, eficiencia energetica e transicao energetica.",
+      "Analisa energia solar, eólica, hidrogênio verde, eletrificação rural, eficiência energética e transição energética.",
     focusAreas: [
       "Energia solar",
-      "Energia eolica",
-      "Hidrogenio verde",
-      "Eletrificacao rural",
-      "Eficiencia energetica",
-      "Transicao energetica"
+      "Energia eólica",
+      "Hidrogênio verde",
+      "Eletrificação rural",
+      "Eficiência energética",
+      "Transição energética"
     ],
-    systemPrompt: `${strategicRules} Foque em potencial energetico, seguranca do suprimento, transicao energetica, oportunidades industriais verdes e impactos socioambientais.`
+    systemPrompt: `${strategicRules} Foque em potencial energético, segurança do suprimento, transição energética, oportunidades industriais verdes e impactos socioambientais.`
   },
   {
     id: "agricultura-bioeconomia-seguranca-alimentar",
     name: "Agente de Agricultura, Bioeconomia e Seguranca Alimentar",
     description:
-      "Estuda agricultura familiar, babacu, pescado, acai, mel, irrigacao, agroindustria e cadeias produtivas locais.",
+      "Estuda agricultura familiar, babaçu, pescado, açaí, mel, irrigação, agroindústria e cadeias produtivas locais.",
     focusAreas: [
       "Agricultura familiar",
-      "Babacu",
+      "Babaçu",
       "Pescado",
-      "Acai",
+      "Açaí",
       "Mel",
-      "Irrigacao",
-      "Agroindustria",
+      "Irrigação",
+      "Agroindústria",
       "Cadeias produtivas locais"
     ],
-    systemPrompt: `${strategicRules} Foque em sistemas agroalimentares, inclusao produtiva, bioeconomia, seguranca alimentar, agregacao de valor e governanca de cadeias locais.`
+    systemPrompt: `${strategicRules} Foque em sistemas agroalimentares, inclusão produtiva, bioeconomia, segurança alimentar, agregação de valor e governança de cadeias locais.`
   },
   {
     id: "economia-industria-inovacao",
     name: "Agente de Economia, Industria e Inovacao",
     description:
-      "Apoia analises de atracao de investimentos, industrializacao, data centers, economia digital, startups e inovacao tecnologica.",
+      "Apoia análises de atração de investimentos, industrialização, data centers, economia digital, startups e inovação tecnológica.",
     focusAreas: [
-      "Atracao de investimentos",
-      "Industrializacao",
+      "Atração de investimentos",
+      "Industrialização",
       "Data centers",
       "Economia digital",
       "Startups",
-      "Inovacao tecnologica"
+      "Inovação tecnológica"
     ],
-    systemPrompt: `${strategicRules} Foque em competitividade economica, politica industrial, atracao de investimentos, ambientes de inovacao, digitalizacao e produtividade.`
+    systemPrompt: `${strategicRules} Foque em competitividade econômica, política industrial, atração de investimentos, ambientes de inovação, digitalização e produtividade.`
   },
   {
     id: "meio-ambiente-clima",
     name: "Agente de Meio Ambiente e Clima",
     description:
-      "Avalia mudancas climaticas, saneamento, recursos hidricos, desmatamento, vulnerabilidade ambiental e adaptacao climatica.",
+      "Avalia mudanças climáticas, saneamento, recursos hídricos, desmatamento, vulnerabilidade ambiental e adaptação climática.",
     focusAreas: [
-      "Mudancas climaticas",
+      "Mudanças climáticas",
       "Saneamento",
-      "Recursos hidricos",
+      "Recursos hídricos",
       "Desmatamento",
       "Vulnerabilidade ambiental",
-      "Adaptacao climatica"
+      "Adaptação climática"
     ],
-    systemPrompt: `${strategicRules} Foque em riscos ambientais, vulnerabilidade climatica, saneamento, agua, uso do solo, adaptacao e resiliencia territorial.`
+    systemPrompt: `${strategicRules} Foque em riscos ambientais, vulnerabilidade climática, saneamento, água, uso do solo, adaptação e resiliência territorial.`
   },
   {
     id: "projetos-financiamento",
     name: "Agente de Projetos e Financiamento",
     description:
-      "Transforma diagnosticos em projetos com objetivos, metodologia, cronograma, orcamento preliminar, indicadores e fontes de financiamento.",
+      "Transforma diagnósticos em projetos com objetivos, metodologia, cronograma, orçamento preliminar, indicadores e fontes de financiamento.",
     focusAreas: [
       "Projetos estruturantes",
       "Fontes de financiamento",
       "Metodologia",
       "Cronograma",
-      "Orcamento preliminar",
+      "Orçamento preliminar",
       "Indicadores"
     ],
-    systemPrompt: `${strategicRules} Foque em transformar diagnosticos em desenho preliminar de projetos, teoria de mudanca, governanca, etapas, indicadores e fontes de financiamento.`
+    systemPrompt: `${strategicRules} Foque em transformar diagnósticos em desenho preliminar de projetos, teoria de mudança, governança, etapas, indicadores e fontes de financiamento.`
   }
 ];
 
+export const agents = baseAgents;
+
 export function getAgentById(agentId?: string | null): Agent | undefined {
-  return agents.find((agent) => agent.id === agentId);
+  return baseAgents.find((agent) => agent.id === agentId);
 }

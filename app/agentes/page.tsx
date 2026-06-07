@@ -1,9 +1,14 @@
 import { AgentCard } from "@/components/agents/AgentCard";
-import { agents } from "@/lib/agents/agents";
+import { AgentProposalForm } from "@/components/agents/AgentProposalForm";
+import { AgentReviewPanel } from "@/components/agents/AgentReviewPanel";
+import { listActiveAgents } from "@/lib/server/agentCatalog";
 import { requirePageSession } from "@/lib/server/auth";
+import { isRoleAtLeast } from "@/lib/types/hierarchy";
 
 export default async function AgentsPage() {
-  await requirePageSession();
+  const user = await requirePageSession();
+  const activeAgents = await listActiveAgents();
+  const canReview = isRoleAtLeast(user.profile.role, "manager");
 
   return (
     <div className="space-y-6">
@@ -22,10 +27,14 @@ export default async function AgentsPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {agents.map((agent) => (
+        {activeAgents.map((agent) => (
           <AgentCard key={agent.id} agent={agent} />
         ))}
       </section>
+
+      <AgentProposalForm />
+
+      {canReview ? <AgentReviewPanel /> : null}
     </div>
   );
 }

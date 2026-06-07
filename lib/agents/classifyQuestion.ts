@@ -1,4 +1,4 @@
-import { agents } from "@/lib/agents/agents";
+import { baseAgents } from "@/lib/agents/agents";
 import type { AgentClassification } from "@/lib/types/agent";
 
 const keywordMap = [
@@ -47,7 +47,7 @@ const keywordMap = [
   },
   {
     agentId: "agricultura-bioeconomia-seguranca-alimentar",
-    theme: "Agricultura, bioeconomia e seguranca alimentar",
+    theme: "Agricultura, bioeconomia e segurança alimentar",
     keywords: [
       "agricultura",
       "agricola",
@@ -57,7 +57,7 @@ const keywordMap = [
       "mel",
       "irrigacao",
       "agroindustria",
-      "seguranca alimentar",
+      "segurança alimentar",
       "bioeconomia"
     ]
   },
@@ -114,8 +114,20 @@ function normalizeText(value: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-export function classifyQuestion(question: string): AgentClassification {
+function buildBlockedReason(availableAgents: typeof baseAgents): string {
+  const scopes = availableAgents
+    .map((agent) => agent.name.replace(/^Agente de /, "").replace(/^Agente /, ""))
+    .join(", ");
+
+  return `A pergunta está fora do escopo dos agentes disponíveis. Refaça com foco em um destes temas: ${scopes}.`;
+}
+
+export function classifyQuestion(
+  question: string,
+  availableAgents: typeof baseAgents = baseAgents
+): AgentClassification {
   const normalizedQuestion = normalizeText(question);
+  let bestMatch: { entry: (typeof keywordMap)[number]; matchedKeywords: string[] } | null = null;
 
   for (const entry of keywordMap) {
     const matchedKeywords = entry.keywords.filter((keyword) =>
@@ -123,21 +135,31 @@ export function classifyQuestion(question: string): AgentClassification {
     );
 
     if (matchedKeywords.length > 0) {
-      const recommendedAgent = agents.find((agent) => agent.id === entry.agentId) ?? agents[0];
-      return {
-        theme: entry.theme,
-        recommendedAgent,
-        reason: `A pergunta contem termos associados ao tema: ${matchedKeywords.join(", ")}.`,
-        matchedKeywords
-      };
+      if (!bestMatch || matchedKeywords.length > bestMatch.matchedKeywords.length) {
+        bestMatch = { entry, matchedKeywords };
+      }
     }
   }
 
+  if (bestMatch) {
+    const recommendedAgent =
+      availableAgents.find((agent) => agent.id === bestMatch.entry.agentId) ?? availableAgents[0];
+
+    return {
+      theme: bestMatch.entry.theme,
+      recommendedAgent,
+      reason: `A pergunta contém termos associados ao tema: ${bestMatch.matchedKeywords.join(", ")}.`,
+      matchedKeywords: bestMatch.matchedKeywords,
+      isCoherent: true
+    };
+  }
+
   return {
-    theme: "Planejamento territorial e desenvolvimento regional",
-    recommendedAgent: agents[0],
-    reason:
-      "Nenhum termo tematico especifico foi identificado; o agente territorial foi selecionado como ponto de partida transversal.",
-    matchedKeywords: []
+    theme: "Fora do escopo",
+    recommendedAgent: availableAgents[0],
+    reason: buildBlockedReason(availableAgents),
+    matchedKeywords: [],
+    isCoherent: false,
+    blockedReason: buildBlockedReason(availableAgents)
   };
 }
